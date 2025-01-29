@@ -46,23 +46,23 @@ def get_macd_features(df, horizons=[2, 5, 60, 250, 1000]):
     signal = macd.ewm(span=9, adjust=False).mean()
     df['macd_diff'] = macd - signal
 
-    new_predictors = []
+    new_predictors = ['macd_diff']
     # Calculate MACD-based features for different horizons
     for horizon in horizons:
         # Rolling mean of MACD difference
         macd_ma = f'macd_ma_{horizon}'
         df[macd_ma] = df['macd_diff'].rolling(window=horizon, min_periods=1).mean()
-        new_predictors.append(macd_ma)
+        # new_predictors.append(macd_ma)
 
         # Rolling standard deviation of MACD difference
         macd_std = f'macd_std_{horizon}'
         df[macd_std] = df['macd_diff'].rolling(window=horizon, min_periods=1).std()
-        new_predictors.append(macd_std)
+        # new_predictors.append(macd_std)
 
         # MACD momentum (rate of change)
         macd_mom = f'macd_mom_{horizon}'
         df[macd_mom] = df['macd_diff'].pct_change(horizon)
-        new_predictors.append(macd_mom)
+        # new_predictors.append(macd_mom)
 
         # MACD crossover signals
         macd_cross = f'macd_cross_{horizon}'
@@ -217,6 +217,8 @@ def main():
 
     print("  4. Final Processing of data...")
     df = final_processing(df)
+    print(df.info())
+    print(df.head())
 
     print("  5. Preparing model...")
     model = RandomForestClassifier(n_estimators=200, min_samples_split=50, random_state=1)
