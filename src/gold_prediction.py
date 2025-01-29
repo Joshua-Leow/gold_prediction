@@ -254,7 +254,8 @@ def main():
     print(predictions["Target"].value_counts() / predictions.shape[0])
 
     print("  8. Simulating Trades...")
-    trades, stats = simulate_trades(df, predictions)
+    from config import  profit_perc, stop_loss_perc
+    trades, stats = simulate_trades(df, predictions, profit_perc=profit_perc, stop_loss_perc=stop_loss_perc)
     print("\nTrading Statistics:")
     print(stats)
 

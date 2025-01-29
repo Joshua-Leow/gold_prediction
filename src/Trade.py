@@ -54,8 +54,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
         # Check for new trade signal
         try:
             if predictions.at[idx, "Predictions"] == 1 and (active_trade is None or active_trade.is_closed):
-                from config import profit_perc, stop_loss_perc
-                active_trade = Trade(row.Close, idx, profit_perc=profit_perc, stop_loss_perc=stop_loss_perc)
+                active_trade = Trade(row.Close, idx, profit_perc, stop_loss_perc)
                 trades.append(active_trade)
         except KeyError:
             continue
