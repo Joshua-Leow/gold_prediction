@@ -8,7 +8,7 @@ from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import precision_score
 
-from src.config import target_candle
+from src.Trade import simulate_trades
 
 
 def get_period(interval):
@@ -113,7 +113,7 @@ def predict(train, test, predictors, model):
     preds[preds >= confidence] = 1
     preds[preds < 1-confidence] = 0
     preds[(preds >= 1-confidence) & (preds < confidence)] = None
-    return pd.Series(preds, index=test.index, name="Predictions")
+    return pd.Series(preds, index=test.index.tz_convert('Asia/Singapore'), name="Predictions")
 
 def backtest(data, model, predictors, start=2400, step=240):
     all_predictions = []
@@ -131,13 +131,11 @@ def backtest(data, model, predictors, start=2400, step=240):
         all_predictions.append(combined)
     return pd.concat(all_predictions)
 
-def plot_finplot(df, predictions):
-    original_df = df.copy()
-    # Add predictions back to original dataframe
-    original_df = pd.merge(original_df, predictions, on='Datetime', how='inner')
-    # print(original_df)
 
-    # Create plots
+def plot_finplot(df, predictions, trades):
+    original_df = df.copy()
+    original_df = pd.merge(original_df, predictions, on='Datetime', how='inner')
+
     ax, ax2 = fplt.create_plot('GOLD MACD with Trade Signals', rows=2)
 
     # Plot MACD
@@ -167,6 +165,23 @@ def plot_finplot(df, predictions):
         fplt.plot(pd.Series(index=sell_signals, data=sell_prices), ax=ax, color='#f00', marker='v',
                   legend='Sell Signal', size=5)
 
+    # Plot trade markers and profit/loss lines
+    for trade in trades:
+        if trade.is_closed:
+            # Plot entry point
+            fplt.plot(trade.buy_index, trade.buy_price, ax=ax,
+                            marker='^', color='#0f0', size=10)
+
+            # Plot exit point
+            marker_color = '#0f0' if trade.profit > 0 else '#f00'
+            fplt.plot(trade.sell_index, trade.sell_price, ax=ax,
+                            marker='v', color=marker_color, size=10)
+
+            # Draw connection line
+            fplt.add_line((trade.buy_index, trade.buy_price),
+                          (trade.sell_index, trade.sell_price),
+                          ax=ax, color=marker_color, style='--')
+
     # Add volume
     axo = ax.overlay()
     fplt.volume_ocv(original_df[['Open', 'Close', 'Volume']], ax=axo)
@@ -176,17 +191,22 @@ def plot_finplot(df, predictions):
     hover_label = fplt.add_legend('', ax=ax)
 
     def update_legend_text(x, y):
-        row = original_df.loc[pd.to_datetime(x, unit='ns', utc=True).tz_convert('Asia/Singapore')]
+        timestamp = pd.to_datetime(x, unit='ns', utc=True).tz_convert('Asia/Singapore')
+        row = original_df.loc[timestamp]
         fmt = '<span style="color:#%s">%%.2f</span>' % ('0b0' if (row.Open < row.Close).all() else 'a00')
         rawtxt = '<span style="font-size:13px">%%s %%s</span> &nbsp; O%s C%s H%s L%s' % (fmt, fmt, fmt, fmt)
         values = [row.Open, row.Close, row.High, row.Low]
 
-        if 'Predictions' in row and not pd.isna(row.Predictions):
-            if row.Predictions == 1:
-                signal_type = "BUY"
-            elif row.Predictions == 0:
-                signal_type = "SELL"
-            rawtxt += f' <span style="color:#{"0b0" if signal_type == "BUY" else "a00"}">{signal_type}</span>'
+        # Add trade information if available
+        active_trade = next((t for t in trades if t.buy_index <= timestamp and
+                             (not t.is_closed or t.sell_index >= timestamp)), None)
+        if active_trade:
+            if active_trade.is_closed:
+                profit = active_trade.profit
+                rawtxt += f' <span style="color:#{"0b0" if profit > 0 else "a00"}">Profit: ${profit:.2f}</span>'
+            else:
+                rawtxt += ' <span style="color:#0b0">Active Trade</span>'
+
         from config import symbol, interval
         hover_label.setText(rawtxt % tuple([symbol, interval.upper()] + values))
 
@@ -217,11 +237,10 @@ def main():
 
     print("  4. Final Processing of data...")
     df = final_processing(df)
-    print(df.info())
-    print(df.head())
+    # print(df.info())
 
     print("  5. Preparing model...")
-    model = RandomForestClassifier(n_estimators=200, min_samples_split=50, random_state=1)
+    model = RandomForestClassifier(n_estimators=250, min_samples_split=50, random_state=1)
 
     print("  6. Making Predictions...")
     predictions = backtest(df, model, predictors)
@@ -234,12 +253,18 @@ def main():
     print("Precision Score:", precision)
     print(predictions["Target"].value_counts() / predictions.shape[0])
 
-    print("  8. Ploting Chart...")
-    plot_finplot(df, predictions)
-    print("############### COMMAND TO KILL PROCESS: ################\n"
-          "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
-          "#########################################################\n")
+    print("  8. Simulating Trades...")
+    trades, stats = simulate_trades(df, predictions)
+    print("\nTrading Statistics:")
+    print(stats)
+
+    print("  9. Plotting Chart...")
+    plot_finplot(df, predictions, trades)
+    # print("############### COMMAND TO KILL PROCESS: ################\n"
+    #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
+    #       "#########################################################\n")
 
 
 if __name__ == "__main__":
+    from config import target_candle
     main()
