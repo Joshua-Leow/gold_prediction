@@ -22,14 +22,15 @@ def get_period(interval):
 def fetch_data(symbol, interval):
     period=get_period(interval)
     df = yf.download(symbol, period=period, interval=interval, ignore_tz=True, progress=False)
-    # df.to_csv(Path(os.path.join(os.getcwd(), f"data/{symbol}_{interval}.csv")))
+    df.to_csv(Path(os.path.join(os.getcwd(), f"data/{symbol}_{interval}.csv")))
     return df
 
 def preprocess_data(df):
     df.index = pd.to_datetime(df.index, utc=True).map(lambda x: x.tz_convert('Singapore'))
     df.columns = df.columns.droplevel(1)
 
-    df["Tomorrow"] = df["Close"].shift(-5)
+    from config import target_candle
+    df["Tomorrow"] = df["Close"].shift(-target_candle)
     df["Target"] = (df["Tomorrow"] > df["Close"]).astype(int)
     df = df.loc["1990-01-01":].copy()
     return df
@@ -51,7 +52,8 @@ def get_close_ratio_and_trend(df):
         df[ratio_column] = df["Close"] / rolling_averages["Close"]
 
         trend_column = f"Trend_{horizon}"
-        df[trend_column] = df.shift(1).rolling(horizon).sum()["Target"]
+        from config import target_candle
+        df[trend_column] = df.shift(target_candle).rolling(horizon).sum()["Target"]
 
         new_predictors += [ratio_column, trend_column]
     return new_predictors
@@ -62,11 +64,12 @@ def final_processing(df):
     return df
 
 def predict(train, test, predictors, model):
+    from config import confidence
     model.fit(train[predictors], train["Target"])
     preds = model.predict_proba(test[predictors])[:, 1]
-    preds[preds >= .9] = 1
-    preds[preds < .1] = 0
-    preds[(preds >= 0.1) & (preds < 0.9)] = None
+    preds[preds >= confidence] = 1
+    preds[preds < 1-confidence] = 0
+    preds[(preds >= 1-confidence) & (preds < confidence)] = None
     preds = pd.Series(preds, index=test.index, name="Predictions")
     combined = pd.concat([test["Target"], preds], axis=1)
     return combined
@@ -138,22 +141,21 @@ def plot_finplot(df, predictions):
             elif row.Predictions == 0:
                 signal_type = "SELL"
             rawtxt += f' <span style="color:#{"0b0" if signal_type == "BUY" else "a00"}">{signal_type}</span>'
-
-        hover_label.setText(rawtxt % tuple(['GC=F', '1h'.upper()] + values))
+        from config import symbol, interval
+        hover_label.setText(rawtxt % tuple([symbol, interval.upper()] + values))
 
 
     def update_crosshair_text(x, y, xtext, ytext):
         ytext = '%s (Close%+.2f)' % (ytext, (y - original_df.iloc[x].Close))
         return xtext, ytext
 
-    print(original_df.columns)
     fplt.set_mouse_callback(update_legend_text, ax=ax, when='hover')
     fplt.add_crosshair_info(update_crosshair_text, ax=ax)
     fplt.show()
 
 
 def main():
-    symbol, interval = 'GC=F', '5m'
+    from config import symbol, interval
 
     print("  1. Fetching data...")
     df = fetch_data(symbol, interval)
