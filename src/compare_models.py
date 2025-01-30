@@ -2,7 +2,6 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
-from sklearn.metrics import precision_score, recall_score, f1_score
 from dataclasses import dataclass
 import pandas as pd
 
