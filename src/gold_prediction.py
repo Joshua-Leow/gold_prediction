@@ -173,19 +173,22 @@ def plot_finplot(df, predictions, trades):
     # Plot trade markers and profit/loss lines
     for trade in trades:
         if trade.is_closed:
-            # Plot entry point
-            fplt.plot(trade.buy_index, trade.buy_price, ax=ax,
-                            marker='^', color='#0f0', size=10)
+            # Entry marker
+            entry_color = '#0f0' if trade.trade_type == "LONG" else '#f00'
+            fplt.plot(trade.entry_index, trade.entry_price, ax=ax,
+                            marker='^' if trade.trade_type == "LONG" else 'v',
+                            color=entry_color, size=10)
 
-            # Plot exit point
-            marker_color = '#0f0' if trade.profit > 0 else '#f00'
-            fplt.plot(trade.sell_index, trade.sell_price, ax=ax,
-                            marker='v', color=marker_color, size=10)
+            # Exit marker
+            profit_color = '#0f0' if trade.profit > 0 else '#f00'
+            fplt.plot(trade.exit_index, trade.exit_price, ax=ax,
+                            marker='v' if trade.trade_type == "LONG" else '^',
+                            color=profit_color, size=10)
 
-            # Draw connection line
-            fplt.add_line((trade.buy_index, trade.buy_price),
-                          (trade.sell_index, trade.sell_price),
-                          ax=ax, color=marker_color, style='--')
+            # Connection line
+            fplt.add_line((trade.entry_index, trade.entry_price),
+                          (trade.exit_index, trade.exit_price),
+                          ax=ax, color=profit_color, style='--')
 
     # Add volume
     axo = ax.overlay()
@@ -245,7 +248,7 @@ def main():
     # print(df.info())
 
     print("  5. Preparing model...")
-    model = RandomForestClassifier(n_estimators=250, min_samples_split=50, random_state=1)
+    model = RandomForestClassifier(n_estimators=100, min_samples_split=50, random_state=1)
 
     print("  6. Making Predictions...")
     predictions = backtest(df, model, predictors)
@@ -260,6 +263,8 @@ def main():
 
     print("  8. Simulating Trades...")
     from config import  profit_perc, stop_loss_perc
+    if not isinstance(predictions, pd.DataFrame):
+        predictions = predictions.to_frame(name="Predictions")
     trades, stats = simulate_trades(df, predictions, profit_perc=profit_perc, stop_loss_perc=stop_loss_perc)
     print("\nTrading Statistics:")
     print(stats)
@@ -274,4 +279,3 @@ def main():
 if __name__ == "__main__":
     from config import target_candle
     main()
-    # TODO: Fix trades, shorting not working
