@@ -23,9 +23,14 @@ def get_period(interval):
 
 
 def fetch_data(symbol, interval):
-    period=get_period(interval)
-    df = yf.download(symbol, period=period, interval=interval, ignore_tz=True, progress=False)
-    df.to_csv(Path(os.path.join(os.getcwd(), f"data/{symbol}_{interval}.csv")))
+    saved_path = Path(os.path.join(os.getcwd(), f"data/archive/{symbol}_{interval}_archive.csv"))
+    if os.path.exists(saved_path):
+        df = pd.read_csv(saved_path, index_col=0, header=[0, 1])
+    else:
+        period=get_period(interval)
+        df = yf.download(symbol, period=period, interval=interval, ignore_tz=True, progress=False)
+        df.to_csv(Path(os.path.join(os.getcwd(), f"data/{symbol}_{interval}.csv")))
+        print(f"Saved file to data/{symbol}_{interval}.csv")
     return df
 
 def preprocess_data(df):
@@ -269,3 +274,4 @@ def main():
 if __name__ == "__main__":
     from config import target_candle
     main()
+    # TODO: Fix trades, shorting not working
