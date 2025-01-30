@@ -32,25 +32,28 @@ def get_models():
         "Random Forest": RandomForestClassifier(
             n_estimators=200,
             min_samples_split=50,
+            max_depth=10,
             random_state=1
         ),
         "XGBoost": XGBClassifier(
             n_estimators=200,
-            learning_rate=0.1,
+            learning_rate=0.05,
+            max_depth=6,
+            min_child_weight=2,
             random_state=1
         ),
         "LightGBM": LGBMClassifier(
             n_estimators=200,
-            learning_rate=0.1,
+            learning_rate=0.05,
+            max_depth=6,
+            num_leaves=31,
             random_state=1
         ),
         "Gradient Boosting": GradientBoostingClassifier(
             n_estimators=200,
-            learning_rate=0.1,
-            random_state=1
-        ),
-        "SVM": SVC(
-            probability=True,
+            learning_rate=0.05,
+            max_depth=6,
+            min_samples_split=50,
             random_state=1
         )
     }

@@ -1,11 +1,22 @@
+import numpy as np
 import pandas as pd
 from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.preprocessing import StandardScaler
 
 from src.Trade import simulate_trades
 from src.compare_models import compare_models_performance, ModelMetrics, get_models
-from config import target_candle, symbol, interval, stop_loss_perc, profit_perc
-from src.feature_engineer import get_macd_features, get_close_ratio_and_trend
+from config import target_candle, symbol, interval, stop_loss_perc, profit_perc, confidence
+from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, add_technical_indicators
 from src.processing import fetch_data, preprocess_data, final_processing
+
+
+def predict_with_confidence(model, features, confidence_threshold=0.7):
+    """Make predictions with confidence threshold"""
+    proba = model.predict_proba(features)[:, 1]
+    predictions = np.full(len(proba), np.nan)
+    predictions[proba >= confidence_threshold] = 1
+    predictions[proba < (1-confidence_threshold)] = 0
+    return predictions
 
 
 def predict(train, test, predictors, model):
@@ -44,36 +55,71 @@ def backtest(data, model, predictors, start=2400, step=240):
     return pd.concat(all_predictions)
 
 
-
 def evaluate_models(data, predictors, start=2400, step=240):
     models = get_models()
     model_metrics = {}
+    scaler = StandardScaler()
 
     for model_name, model in models.items():
         print(f"\nEvaluating {model_name}...")
-        predictions = backtest(data, model, predictors, start, step)
+        all_predictions = []
 
-        # Calculate metrics
-        filtered_predictions = predictions.dropna(subset=["Predictions"])
-        precision = precision_score(filtered_predictions["Target"], filtered_predictions["Predictions"])
-        recall = recall_score(filtered_predictions["Target"], filtered_predictions["Predictions"])
-        f1 = f1_score(filtered_predictions["Target"], filtered_predictions["Predictions"])
+        for i in range(start, data.shape[0], step):
+            train = data.iloc[0:i - target_candle].copy()
+            test = data.iloc[i:(i + step)].copy()
 
-        # Simulate trades
-        trades, stats = simulate_trades(
-            data,
-            predictions,
-            profit_perc=profit_perc / 100,
-            stop_loss_perc=stop_loss_perc / 100
-        )
+            # Scale features
+            train_features = scaler.fit_transform(train[predictors])
+            test_features = scaler.transform(test[predictors])
+            train_target = (train["Tomorrow"] > train["Close"]).astype(int)
 
-        model_metrics[model_name] = ModelMetrics(
-            model_name=model_name,
-            precision=precision,
-            recall=recall,
-            f1=f1,
-            trading_stats=stats
-        )
+            # Remove NaN values
+            valid_mask = ~np.isnan(train_target)
+            train_features = train_features[valid_mask]
+            train_target = train_target[valid_mask]
+
+            # Fit and predict
+            try:
+                model.fit(train_features, train_target)
+                preds = predict_with_confidence(model, test_features, confidence)
+                predictions = pd.Series(preds, index=test.index)
+                test_targets = (test["Tomorrow"] > test["Close"]).astype(int)
+                combined = pd.concat([test_targets, predictions], axis=1)
+                combined.columns = ["Target", "Predictions"]
+                all_predictions.append(combined)
+            except Exception as e:
+                print(f"Error in {model_name}: {e}")
+                continue
+
+        if all_predictions:
+            predictions = pd.concat(all_predictions)
+            filtered_predictions = predictions.dropna(subset=["Predictions"])
+
+            if len(filtered_predictions) > 0:
+                precision = precision_score(filtered_predictions["Target"],
+                                            filtered_predictions["Predictions"],
+                                            zero_division=0)
+                recall = recall_score(filtered_predictions["Target"],
+                                      filtered_predictions["Predictions"],
+                                      zero_division=0)
+                f1 = f1_score(filtered_predictions["Target"],
+                              filtered_predictions["Predictions"],
+                              zero_division=0)
+
+                trades, stats = simulate_trades(
+                    data,
+                    predictions,
+                    profit_perc=profit_perc / 100,
+                    stop_loss_perc=stop_loss_perc / 100
+                )
+
+                model_metrics[model_name] = ModelMetrics(
+                    model_name=model_name,
+                    precision=precision,
+                    recall=recall,
+                    f1=f1,
+                    trading_stats=stats
+                )
 
     return model_metrics
 
@@ -86,9 +132,16 @@ def main():
     df = preprocess_data(df)
 
     print("3. Feature Engineering...")
+    print("  3.1 Adding technical indicators...")
+    df = add_technical_indicators(df)
+
+    print("  3.2 Adding MACD and price features...")
     macd_predictors, df = get_macd_features(df)
     price_predictors, df = get_close_ratio_and_trend(df)
-    predictors = macd_predictors + price_predictors
+
+    # Combine all features
+    predictors = (macd_predictors + price_predictors +
+                  ['RSI', 'BB_width', 'Volume_ratio', 'ROC', 'ATR'])
     print("Features used:", predictors)
 
     print("4. Final Processing of data...")
@@ -109,8 +162,6 @@ def main():
     best_model = max(metrics.items(), key=lambda x: x[1].trading_stats.perc_return)
     print(f"\nBest performing model (by return): {best_model[0]}")
     print(best_model[1])
-
-
 
     # print("  5. Preparing model...")
     # model = RandomForestClassifier(n_estimators=200, min_samples_split=50, random_state=1)

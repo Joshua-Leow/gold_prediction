@@ -1,3 +1,46 @@
+import numpy as np
+import pandas as pd
+
+
+def calculate_atr(df, period=14):
+    """Calculate Average True Range"""
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = np.max(ranges, axis=1)
+
+    return true_range.rolling(period).mean()
+
+
+def add_technical_indicators(df):
+    """Add more technical indicators for better prediction"""
+    # RSI
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+
+    # Bollinger Bands
+    df['BB_middle'] = df['Close'].rolling(window=20).mean()
+    bb_std = df['Close'].rolling(window=20).std()
+    df['BB_upper'] = df['BB_middle'] + (bb_std * 2)
+    df['BB_lower'] = df['BB_middle'] - (bb_std * 2)
+    df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / df['BB_middle']
+
+    # Volume indicators
+    df['Volume_SMA'] = df['Volume'].rolling(window=20).mean()
+    df['Volume_ratio'] = df['Volume'] / df['Volume_SMA']
+
+    # Additional momentum indicators
+    df['ROC'] = df['Close'].pct_change(periods=12) * 100
+
+    # Volatility
+    df['ATR'] = calculate_atr(df)
+
+    return df
 
 
 def get_macd_features(df, horizons=[2, 5, 60, 250, 1000]):
