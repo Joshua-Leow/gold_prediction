@@ -1,6 +1,7 @@
 import math
 import os
 
+import numpy as np
 import yfinance as yf
 import pandas as pd
 from pathlib import Path
@@ -51,7 +52,7 @@ def get_macd_features(df, horizons=[2, 5, 60, 250, 1000]):
     signal = macd.ewm(span=9, adjust=False).mean()
     df['macd_diff'] = macd - signal
 
-    new_predictors = ['macd_diff']
+    new_predictors = []
     # Calculate MACD-based features for different horizons
     for horizon in horizons:
         # Rolling mean of MACD difference
@@ -171,8 +172,10 @@ def main():
 
     print("  8. Simulating Trades...")
     from config import  profit_perc, stop_loss_perc
+    # for TP in np.arange(0.001, 0.0001, -0.0001):
+    #     for SL in np.arange(0.001, 0.0001, -0.0001):
     trades, stats = simulate_trades(df, predictions, profit_perc=profit_perc, stop_loss_perc=stop_loss_perc)
-    print("\nTrading Statistics:")
+    # print(f"\nTrading Statistics for TP: {TP:.4f}, SL: {SL:.4f}")
     print(stats)
 
     print("  9. Plotting Chart...")

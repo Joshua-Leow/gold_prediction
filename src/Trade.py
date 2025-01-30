@@ -116,9 +116,9 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
         df.index = pd.to_datetime(df.index).tz_convert('Asia/Singapore')
 
         # Debug prints
-        print(f"DataFrame shape: {df.shape}")
-        print(f"Predictions shape: {predictions.shape}")
-        print(f"Sample of predictions:\n{predictions.head()}")
+        # print(f"DataFrame shape: {df.shape}")
+        # print(f"Predictions shape: {predictions.shape}")
+        # print(f"Sample of predictions:\n{predictions[predictions['Predictions'].notnull()].head()}")
 
         for idx, row in df.iterrows():
             if idx not in predictions.index:
@@ -136,11 +136,11 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                     if pred == 1:  # Long signal
                         active_trade = LongTrade(row.Close, idx, profit_perc, stop_loss_perc)
                         trades.append(active_trade)
-                        print(f"Created LONG trade at {idx} with entry price {row.Close}")
+                        # print(f"Created LONG trade at {idx} with entry price {row.Close}")
                     elif pred == 0:  # Short signal
                         active_trade = ShortTrade(row.Close, idx, profit_perc, stop_loss_perc)
                         trades.append(active_trade)
-                        print(f"Created SHORT trade at {idx} with entry price {row.Close}")
+                        # print(f"Created SHORT trade at {idx} with entry price {row.Close}")
             except KeyError as e:
                 print(f"KeyError at index {idx}: {e}")
                 continue
