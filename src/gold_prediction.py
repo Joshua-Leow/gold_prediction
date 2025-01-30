@@ -156,7 +156,7 @@ def main():
     # print(df.info())
 
     print("  5. Preparing model...")
-    model = RandomForestClassifier(n_estimators=10, min_samples_split=10, random_state=1)
+    model = RandomForestClassifier(n_estimators=200, min_samples_split=50, random_state=1)
 
     print("  6. Making Predictions...")
     predictions = backtest(df, model, predictors)
@@ -171,8 +171,6 @@ def main():
 
     print("  8. Simulating Trades...")
     from config import  profit_perc, stop_loss_perc
-    if not isinstance(predictions, pd.DataFrame):
-        predictions = predictions.to_frame(name="Predictions")
     trades, stats = simulate_trades(df, predictions, profit_perc=profit_perc, stop_loss_perc=stop_loss_perc)
     print("\nTrading Statistics:")
     print(stats)
