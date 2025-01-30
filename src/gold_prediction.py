@@ -174,7 +174,7 @@ def main():
     from config import  profit_perc, stop_loss_perc
     # for TP in np.arange(0.001, 0.0001, -0.0001):
     #     for SL in np.arange(0.001, 0.0001, -0.0001):
-    trades, stats = simulate_trades(df, predictions, profit_perc=profit_perc, stop_loss_perc=stop_loss_perc)
+    trades, stats = simulate_trades(df, predictions, profit_perc=profit_perc/100, stop_loss_perc=stop_loss_perc/100)
     # print(f"\nTrading Statistics for TP: {TP:.4f}, SL: {SL:.4f}")
     print(stats)
 
