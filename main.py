@@ -135,12 +135,12 @@ def main():
 
     print("3. Feature Engineering...")
     predictors = None
-    print("  3.1 Adding price ratios and trends...")
-    price_predictors, df = get_close_ratio_and_trend(df)
-    predictors = price_predictors
-    print("  3.2 Adding MACD and price features...")
+    print("  3.1 Adding MACD and price features...")
     macd_predictors, df = get_macd_features(df)
-    predictors += macd_predictors
+    predictors = macd_predictors
+    print("  3.2 Adding price ratios and trends...")
+    price_predictors, df = get_close_ratio_and_trend(df)
+    predictors += price_predictors
     print("Features used:", predictors)
 
     print("4. Final Processing of data...")
