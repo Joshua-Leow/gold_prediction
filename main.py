@@ -133,17 +133,14 @@ def main():
     print("2. Pre-processing data...")
     df = preprocess_data(df)
 
-    # print("3. Feature Engineering...")
-    # print("  3.1 Adding technical indicators...")
-    # df = add_technical_indicators(df)
-
+    print("3. Feature Engineering...")
+    predictors = None
+    print("  3.1 Adding price ratios and trends...")
+    price_predictors, df = get_close_ratio_and_trend(df)
+    predictors = price_predictors
     print("  3.2 Adding MACD and price features...")
     macd_predictors, df = get_macd_features(df)
-    price_predictors, df = get_close_ratio_and_trend(df)
-
-    # Combine all features
-    predictors = macd_predictors + price_predictors
-                  # ['RSI', 'BB_width', 'Volume_ratio', 'ROC', 'ATR'])
+    predictors += macd_predictors
     print("Features used:", predictors)
 
     print("4. Final Processing of data...")
