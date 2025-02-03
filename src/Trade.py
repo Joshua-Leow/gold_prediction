@@ -1,5 +1,4 @@
 from abc import abstractmethod, ABC
-
 import pandas as pd
 
 from src.Stats import Stats
@@ -105,6 +104,112 @@ class ShortTrade(BaseTrade):
         return high_price > self.take_stop_loss_val
 
 
+class TrailingStopMixin:
+    """Mixin class to add trailing stop loss functionality to trade classes."""
+    def __init__(self, *args, trail_percent=0.01, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.trail_percent = trail_percent
+        self.highest_price = self.entry_price
+        self.lowest_price = self.entry_price
+        self.trailing_stop_price = None
+
+    @abstractmethod
+    def update_trailing_stop(self, current_price):
+        pass
+
+    def update(self, curr_candle=None):
+        super().update(curr_candle)
+        if curr_candle is not None:
+            self.update_trailing_stop(curr_candle.Close)
+
+
+class TrailingLongTrade(TrailingStopMixin, LongTrade):
+    """Long trade with trailing stop loss that moves up as price increases."""
+    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=0.01):
+        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=trail_percent)
+        self.trailing_stop_price = self.entry_price * (1 - self.trail_percent)
+
+    def update_trailing_stop(self, current_price):
+        if current_price > self.highest_price:
+            self.highest_price = current_price
+            self.trailing_stop_price = self.highest_price * (1 - self.trail_percent)
+
+    def should_close_at_loss(self, high_price, low_price):
+        return low_price < self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+
+
+class TrailingShortTrade(TrailingStopMixin, ShortTrade):
+    """Short trade with trailing stop loss that moves down as price decreases."""
+    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=0.01):
+        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=trail_percent)
+        self.trailing_stop_price = self.entry_price * (1 + self.trail_percent)
+
+    def update_trailing_stop(self, current_price):
+        if current_price < self.lowest_price:
+            self.lowest_price = current_price
+            self.trailing_stop_price = self.lowest_price * (1 + self.trail_percent)
+
+    def should_close_at_loss(self, high_price, low_price):
+        return high_price > self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+
+
+class ScaledTrade(BaseTrade):
+    """Base class for trades that implement position scaling (scaling in/out)."""
+    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, num_scales=3):
+        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc)
+        self.num_scales = num_scales
+        self.scale_points = []
+        self.current_scale = 0
+        self.position_size = 1.0 / num_scales
+        self.setup_scale_points()
+
+    @abstractmethod
+    def setup_scale_points(self):
+        pass
+
+    @abstractmethod
+    def check_scale_points(self, current_price):
+        pass
+
+
+class ScaledLongTrade(ScaledTrade, LongTrade):
+    """Long trade that scales into position at predetermined price points."""
+    def setup_scale_points(self):
+        # Example: Scale in at progressively lower prices
+        scale_factor = self.stop_loss_perc / (self.num_scales + 1)
+        self.scale_points = [
+            self.entry_price * (1 - (i + 1) * scale_factor)
+            for i in range(self.num_scales - 1)
+        ]
+
+    def check_scale_points(self, current_price):
+        if self.current_scale < len(self.scale_points):
+            if current_price <= self.scale_points[self.current_scale]:
+                self.current_scale += 1
+                self.position_size += 1.0 / self.num_scales
+                return True
+        return False
+
+
+class ScaledShortTrade(ScaledTrade, ShortTrade):
+    """Short trade that scales into position at predetermined price points."""
+    def setup_scale_points(self):
+        # Example: Scale in at progressively higher prices
+        scale_factor = self.stop_loss_perc / (self.num_scales + 1)
+        self.scale_points = [
+            self.entry_price * (1 + (i + 1) * scale_factor)
+            for i in range(self.num_scales - 1)
+        ]
+
+    def check_scale_points(self, current_price):
+        if self.current_scale < len(self.scale_points):
+            if current_price >= self.scale_points[self.current_scale]:
+                self.current_scale += 1
+                self.position_size += 1.0 / self.num_scales
+                return True
+        return False
+
+
 def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_loss_perc=0.01):
     trades = []
     active_trade = None
@@ -134,11 +239,15 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                 pred = predictions.at[idx, "Predictions"]
                 if pred is not None and (active_trade is None or active_trade.is_closed):
                     if pred == 1:  # Long signal
-                        active_trade = LongTrade(row.Close, idx, profit_perc, stop_loss_perc)
+                        # active_trade = LongTrade(row.Close, idx, profit_perc, stop_loss_perc)
+                        active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=0.01)
+                        # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         trades.append(active_trade)
                         # print(f"Created LONG trade at {idx} with entry price {row.Close}")
                     elif pred == 0:  # Short signal
-                        active_trade = ShortTrade(row.Close, idx, profit_perc, stop_loss_perc)
+                        # active_trade = ShortTrade(row.Close, idx, profit_perc, stop_loss_perc)
+                        active_trade = TrailingShortTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=0.01)
+                        # active_trade = ScaledShortTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         trades.append(active_trade)
                         # print(f"Created SHORT trade at {idx} with entry price {row.Close}")
             except KeyError as e:

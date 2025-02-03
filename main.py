@@ -7,6 +7,7 @@ from src.Trade import simulate_trades
 from src.compare_models import compare_models_performance, ModelMetrics, get_models
 from config import target_candle, symbol, interval, stop_loss_perc, profit_perc, confidence
 from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, add_technical_indicators
+from src.plot_chart import plot_finplot
 from src.processing import fetch_data, preprocess_data, final_processing
 
 
@@ -56,6 +57,7 @@ def backtest(data, model, predictors, start=2400, step=240):
 
 
 def evaluate_models(data, predictors, start=2400, step=240):
+    predictions, trades = None, None
     models = get_models()
     model_metrics = {}
     scaler = StandardScaler()
@@ -121,7 +123,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
                     trading_stats=stats
                 )
 
-    return model_metrics
+    return predictions, trades, model_metrics
 
 
 def main():
@@ -131,24 +133,24 @@ def main():
     print("2. Pre-processing data...")
     df = preprocess_data(df)
 
-    print("3. Feature Engineering...")
-    print("  3.1 Adding technical indicators...")
-    df = add_technical_indicators(df)
+    # print("3. Feature Engineering...")
+    # print("  3.1 Adding technical indicators...")
+    # df = add_technical_indicators(df)
 
     print("  3.2 Adding MACD and price features...")
     macd_predictors, df = get_macd_features(df)
     price_predictors, df = get_close_ratio_and_trend(df)
 
     # Combine all features
-    predictors = (macd_predictors + price_predictors +
-                  ['RSI', 'BB_width', 'Volume_ratio', 'ROC', 'ATR'])
+    predictors = macd_predictors + price_predictors
+                  # ['RSI', 'BB_width', 'Volume_ratio', 'ROC', 'ATR'])
     print("Features used:", predictors)
 
     print("4. Final Processing of data...")
     df = final_processing(df)
 
     print("5. Evaluating multiple models...")
-    metrics = evaluate_models(df, predictors)
+    predictions, trades, metrics = evaluate_models(df, predictors)
 
     print("\n6. Comparing model performances...")
     trading_comparison, ml_metrics_comparison = compare_models_performance(metrics)
@@ -185,8 +187,8 @@ def main():
     # # print(f"\nTrading Statistics for TP: {TP:.4f}, SL: {SL:.4f}")
     # print(stats)
     #
-    # print("  9. Plotting Chart...")
-    # plot_finplot(df, predictions, trades)
+    print("  9. Plotting Chart...")
+    plot_finplot(df, predictions, trades)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
     #       "#########################################################\n")
