@@ -91,32 +91,19 @@ def get_macd_features(df, horizons=[2, 5, 60, 250, 1000]):
     signal = macd.ewm(span=9, adjust=False).mean()
     df['macd_diff'] = macd - signal
 
-    new_predictors = []
+    # MACD crossover signals
+    df["macd_cross"] = ((df['macd_diff'] > 0) &
+                      (df['macd_diff'].shift(1) <= 0)).astype(int)
+
+    new_predictors = ["macd", 'macd_diff', 'macd_cross']
     # Calculate MACD-based features for different horizons
     for horizon in horizons:
         rolling_averages = df.rolling(window=horizon).mean()
 
-        # Calculate price ratios using only past data
-        ratio_column = f"MACD_Ratio_{horizon}"
-        df[ratio_column] = df["macd"] / rolling_averages["macd"]
-        new_predictors.append(ratio_column)
-
-        # Rolling standard deviation of MACD difference
-        macd_std = f'MACD_std_{horizon}'
-        df[macd_std] = df['macd'].rolling(window=horizon, min_periods=1).std()
-        new_predictors.append(macd_std)
-
-        # MACD momentum (rate of change)
-        # macd_mom = f'macd_mom_{horizon}'
-        # df[macd_mom] = df['macd_diff'].pct_change(horizon)
-        # new_predictors.append(macd_mom)
-
-        # MACD crossover signals
-        macd_cross = f'macd_cross_{horizon}'
-        df[macd_cross] = ((df['macd_diff'] > 0) &
-                          (df['macd_diff'].shift(1) <= 0)).astype(int)
-        new_predictors.append(macd_cross)
-
+        # Calculate MACD diff ratios using only past data
+        diff_ratio_column = f"MACD_Diff_Ratio_{horizon}"
+        df[diff_ratio_column] = df["macd_diff"] / rolling_averages["macd_diff"]
+        new_predictors.append(diff_ratio_column)
     return new_predictors, df
 
 
