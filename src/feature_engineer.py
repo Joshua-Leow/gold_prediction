@@ -57,13 +57,6 @@ def get_rsi_features(df, horizons=[2, 5, 60, 250, 1000]):
         rs = gain / loss
         df[RSI_column] = 100 - (100 / (1 + rs))
 
-
-        # Calculate price ratios using only past data
-        rolling_averages = df.Close.rolling(window=horizon, min_periods=1).mean()
-        ratio_column = f"Close_Ratio_{horizon}"
-        df[ratio_column] = df["Close"] / rolling_averages
-        new_predictors.append(ratio_column)
-
         # Rolling mean of RSI difference
         rolling_averages = df.Close.rolling(window=horizon, min_periods=1).mean()
         rsi_ratio_column = f'rsi_ratio_{horizon}'
@@ -75,12 +68,6 @@ def get_rsi_features(df, horizons=[2, 5, 60, 250, 1000]):
         rsi_changes = df['RSI'].pct_change(horizon)
         # df[macd_changes] = macd_changes.rolling(window=horizon, min_periods=1).mean()
         # new_predictors.append(rsi_trend)
-
-        # MACD crossover signals
-        macd_cross = f'macd_cross_{horizon}'
-        df[macd_cross] = ((df['macd_diff'] > 0) &
-                          (df['macd_diff'].shift(1) <= 0)).astype(int)
-        new_predictors.append(macd_cross)
 
 
 def get_macd_features(df, horizons=[2, 5, 60, 250, 1000]):
