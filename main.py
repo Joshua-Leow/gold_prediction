@@ -161,8 +161,8 @@ def main():
     print(ml_metrics_comparison)
 
     # Find best model based on return
-    best_model = max(metrics.items(), key=lambda x: x[1].trading_stats.perc_return)
-    print(f"\nBest performing model (by return): {best_model[0]}")
+    best_model = max(metrics.items(), key=lambda x: x[1].precision)
+    print(f"\nBest performing model (by precision): {best_model[0]}")
     print(best_model[1])
 
     # print("  5. Preparing model...")
