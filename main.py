@@ -6,7 +6,8 @@ from sklearn.preprocessing import StandardScaler
 from src.Trade import simulate_trades
 from src.compare_models import compare_models_performance, ModelMetrics, get_models
 from config import target_candle, symbol, interval, stop_loss_perc, profit_perc, confidence
-from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, add_technical_indicators
+from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, add_technical_indicators, get_atr, \
+    get_bollinger_bands, get_garman_klass_vol
 from src.plot_chart import plot_finplot
 from src.processing import fetch_data, preprocess_data, final_processing
 
@@ -141,6 +142,15 @@ def main():
     print("  3.2 Adding price ratios and trends...")
     price_predictors, df = get_close_ratio_and_trend(df)
     predictors += price_predictors
+    print("  3.3 Adding ATR volatility features...")
+    atr_predictors, df = get_atr(df)
+    predictors += atr_predictors
+    print("  3.4 Adding Bollinger Bands features...")
+    bb_predictors, df = get_bollinger_bands(df)
+    predictors += bb_predictors
+    print("  3.5 Adding Garman Klass Volume features...")
+    garman_klass_predictors, df = get_garman_klass_vol(df)
+    predictors += garman_klass_predictors
     print("Features used:", predictors)
 
     print("4. Final Processing of data...")

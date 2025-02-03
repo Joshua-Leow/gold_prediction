@@ -1,20 +1,8 @@
 import numpy as np
 import pandas as pd
+import pandas_ta
 
 from config import target_candle
-
-
-def calculate_atr(df, period=14):
-    """Calculate Average True Range"""
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
-
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = np.max(ranges, axis=1)
-
-    return true_range.rolling(period).mean()
-
 
 def add_technical_indicators(df):
     """Add more technical indicators for better prediction"""
@@ -39,13 +27,30 @@ def add_technical_indicators(df):
     # Additional momentum indicators
     df['ROC'] = df['Close'].pct_change(periods=12) * 100
 
-    # Volatility
-    df['ATR'] = calculate_atr(df)
-
     return df
+
+def get_atr(df):
+    atr = pandas_ta.atr(high=df['High'], low=df['Low'], close=df['Close'], length=14)
+    normalised_atr = atr.sub(atr.mean()).div(atr.std())
+    df['atr'] = normalised_atr
+    new_predictors = ["atr"]
+    return new_predictors, df
+
+def get_bollinger_bands(df):
+    df['bb_low'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=20).iloc[:,0])
+    df['bb_mid'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=20).iloc[:,1])
+    df['bb_high'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=20).iloc[:,2])
+    new_predictors = ["bb_low", "bb_mid", "bb_high"]
+    return new_predictors, df
+
+def get_garman_klass_vol(df):
+    df['garman_klass_vol'] = ((np.log(df['High'])-np.log(df['Low']))**2)/2-(2*np.log(2)-1)*((np.log(df['Close'])-np.log(df['Open']))**2)
+    new_predictors = ["garman_klass_vol"]
+    return new_predictors, df
 
 def get_rsi_features(df, horizons=[2, 5, 60, 250, 1000]):
     """Calculate RSI features with different horizons"""
+    df['rsi'] = df['Close'].transform(lambda x: pandas_ta.rsi(close=x, length=20))
     new_predictors = []
     # Calculate RSI-based features for different horizons
     for horizon in horizons:
