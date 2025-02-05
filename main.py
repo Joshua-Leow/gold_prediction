@@ -78,8 +78,8 @@ def evaluate_models(data, predictors, start=2400, step=240):
             train_features = train[predictors].copy()
             # Define training target: 1 for long, -1 for short, 0 otherwise
             train_target = np.where(
-                train["Future_Close"] > train["Close"] + (train["Close"] * profit_perc / 100)*0.1, 1,
-                np.where(train["Future_Close"] < train["Close"] - (train["Close"] * profit_perc / 100)*0.1, -1, 0)
+                train["Future_Close"] > train["Close"] + (train["Close"] * profit_perc / 100), 1,
+                np.where(train["Future_Close"] < train["Close"] - (train["Close"] * profit_perc / 100), -1, 0)
             )
 
             # Remove NaN values
@@ -96,8 +96,8 @@ def evaluate_models(data, predictors, start=2400, step=240):
 
                 # Define test target for evaluation
                 test_target = np.where(
-                    test["Future_Close"] > test["Close"] + (test["Close"] * profit_perc / 100)*0.1, 1,
-                    np.where(test["Future_Close"] < test["Close"] - (test["Close"] * profit_perc / 100)*0.1, -1, 0)
+                    test["Future_Close"] > test["Close"] + (test["Close"] * profit_perc / 100), 1,
+                    np.where(test["Future_Close"] < test["Close"] - (test["Close"] * profit_perc / 100), -1, 0)
                 )
                 combined = pd.concat([pd.Series(test_target, index=test.index), predictions], axis=1)
                 combined.columns = ["Target", "Predictions"]

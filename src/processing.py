@@ -38,8 +38,8 @@ def preprocess_data(df):
     from config import target_candle
     df["Future_Close"] = df["Close"].shift(-target_candle)
     df["Target"] = np.where(
-        df["Future_Close"] > df["Close"] + (df["Close"] * profit_perc / 100)*0.1, 1,
-        np.where(df["Future_Close"] < df["Close"] - (df["Close"] * profit_perc / 100)*0.1, -1, 0)
+        df["Future_Close"] > df["Close"] + (df["Close"] * profit_perc / 100), 1,
+        np.where(df["Future_Close"] < df["Close"] - (df["Close"] * profit_perc / 100), -1, 0)
     )
     # df = df.loc["1990-01-01":].copy()
     return df
