@@ -13,11 +13,11 @@ from src.processing import fetch_data, preprocess_data, final_processing
 
 
 def predict_with_confidence(model, features, confidence_threshold=0.7):
-    """Make predictions with confidence threshold"""
-    proba = model.predict_proba(features)[:, 1]
-    predictions = np.full(len(proba), np.nan)
-    predictions[proba >= confidence_threshold] = 1
-    predictions[proba < (1-confidence_threshold)] = 0
+    """Make predictions with confidence threshold for long (1) and short (-1) trades"""
+    proba = model.predict_proba(features)[:, 1]  # Probability of class 1 (long trade)
+    predictions = np.full(len(proba), np.nan)  # Initialize with NaN
+    predictions[proba >= confidence_threshold] = 1  # Confident long trade
+    predictions[proba < (1 - confidence_threshold)] = -1  # Confident short trade
     return predictions
 
 
@@ -62,9 +62,11 @@ def evaluate_models(data, predictors, start=2400, step=240):
     models = get_models()
     model_metrics = {}
     scaler = StandardScaler()
+    model_counter = 0
 
     for model_name, model in models.items():
-        print(f"\nEvaluating {model_name}...")
+        model_counter += 1
+        print(f"  5.{model_counter} Evaluating {model_name}...")
         all_predictions = []
 
         for i in range(start, data.shape[0], step):
@@ -72,9 +74,19 @@ def evaluate_models(data, predictors, start=2400, step=240):
             test = data.iloc[i:(i + step)].copy()
 
             # Scale features
-            train_features = scaler.fit_transform(train[predictors])
-            test_features = scaler.transform(test[predictors])
-            train_target = (train["Future_Close"] > train["Close"]).astype(int)
+            # train_features = scaler.fit_transform(train[predictors])
+            train_features = train[predictors].copy()
+            # test_features = scaler.transform(test[predictors])
+            # Define training target: 1 for long, -1 for short, 0 otherwise
+            train_target = np.where(
+                train["Future_Close"] > train["Close"] + (train["Close"] * profit_perc / 100), 1,
+                np.where(train["Future_Close"] < train["Close"] - (train["Close"] * profit_perc / 100), -1, 0)
+            )
+
+            # Remove any rows where we don't have the target yet
+            # valid_train_mask = ~train_target.isna()
+            # train_features = train_features[valid_train_mask]
+            # train_target = train_target[valid_train_mask]
 
             # Remove NaN values
             valid_mask = ~np.isnan(train_target)
@@ -84,10 +96,15 @@ def evaluate_models(data, predictors, start=2400, step=240):
             # Fit and predict
             try:
                 model.fit(train_features, train_target)
-                preds = predict_with_confidence(model, test_features, confidence)
+                preds = predict_with_confidence(model, predictors, confidence)
                 predictions = pd.Series(preds, index=test.index)
-                test_targets = (test["Future_Close"] > test["Close"]).astype(int)
-                combined = pd.concat([test_targets, predictions], axis=1)
+
+                # Define test target for evaluation
+                test_target = np.where(
+                    test["Future_Close"] > test["Close"] + (test["Close"] * profit_perc / 100), 1,
+                    np.where(test["Future_Close"] < test["Close"] - (test["Close"] * profit_perc / 100), -1, 0)
+                )
+                combined = pd.concat([pd.Series(test_target, index=test.index), predictions], axis=1)
                 combined.columns = ["Target", "Predictions"]
                 all_predictions.append(combined)
             except Exception as e:
@@ -97,6 +114,10 @@ def evaluate_models(data, predictors, start=2400, step=240):
         if all_predictions:
             predictions = pd.concat(all_predictions)
             filtered_predictions = predictions.dropna(subset=["Predictions"])
+            print(f"    5.{model_counter}.1 Total number of predictions: {filtered_predictions.shape[0]}")
+            print(filtered_predictions[filtered_predictions["Predictions"]==0])
+            print(filtered_predictions[filtered_predictions["Predictions"]==1])
+            print(filtered_predictions[filtered_predictions["Predictions"]==-1])
 
             if len(filtered_predictions) > 0:
                 precision = precision_score(filtered_predictions["Target"],
@@ -111,9 +132,9 @@ def evaluate_models(data, predictors, start=2400, step=240):
 
                 trades, stats = simulate_trades(
                     data,
-                    predictions,
-                    profit_perc=profit_perc / 100,
-                    stop_loss_perc=stop_loss_perc / 100
+                    filtered_predictions,
+                    profit_perc=profit_perc /100,
+                    stop_loss_perc=stop_loss_perc /100
                 )
 
                 model_metrics[model_name] = ModelMetrics(

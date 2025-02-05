@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+
+import numpy as np
 import yfinance as yf
 
 import pandas as pd
@@ -35,7 +37,10 @@ def preprocess_data(df):
 
     from config import target_candle
     df["Future_Close"] = df["Close"].shift(-target_candle)
-    df["Target"] = (df["Future_Close"] > df["Close"] * (1+profit_perc/100)).astype(int)
+    df["Target"] = np.where(
+        df["Future_Close"] > df["Close"] + (df["Close"] * profit_perc / 100), 1,
+        np.where(df["Future_Close"] < df["Close"] - (df["Close"] * profit_perc / 100), -1, 0)
+    )
     # df = df.loc["1990-01-01":].copy()
     return df
 

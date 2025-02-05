@@ -35,27 +35,27 @@ def get_models():
             max_depth=10,
             random_state=1
         )
-        ,"XGBoost": XGBClassifier(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=6,
-            min_child_weight=2,
-            random_state=1
-        )
-        ,"LightGBM": LGBMClassifier(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=6,
-            num_leaves=31,
-            random_state=1
-        )
-        ,"Gradient Boosting": GradientBoostingClassifier(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=6,
-            min_samples_split=50,
-            random_state=1
-        )
+        # ,"XGBoost": XGBClassifier(
+        #     n_estimators=200,
+        #     learning_rate=0.05,
+        #     max_depth=6,
+        #     min_child_weight=2,
+        #     random_state=1
+        # )
+        # ,"LightGBM": LGBMClassifier(
+        #     n_estimators=200,
+        #     learning_rate=0.05,
+        #     max_depth=6,
+        #     num_leaves=31,
+        #     random_state=1
+        # )
+        # ,"Gradient Boosting": GradientBoostingClassifier(
+        #     n_estimators=200,
+        #     learning_rate=0.05,
+        #     max_depth=6,
+        #     min_samples_split=50,
+        #     random_state=1
+        # )
     }
     return models
 
