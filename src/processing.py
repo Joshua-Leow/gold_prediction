@@ -4,6 +4,8 @@ import yfinance as yf
 
 import pandas as pd
 
+from config import profit_perc
+
 
 def get_period(interval):
     if interval == '1d' or interval == '1w':
@@ -32,12 +34,12 @@ def preprocess_data(df):
     df.columns = df.columns.droplevel(1)
 
     from config import target_candle
-    df["Tomorrow"] = df["Close"].shift(-target_candle)
-    df["Target"] = (df["Tomorrow"] > df["Close"]).astype(int)
-    df = df.loc["1990-01-01":].copy()
+    df["Future_Close"] = df["Close"].shift(-target_candle)
+    df["Target"] = (df["Future_Close"] > df["Close"] * (1+(profit_perc/100))).astype(int)
+    # df = df.loc["1990-01-01":].copy()
     return df
 
 def final_processing(df):
-    df = df.dropna(subset=df.columns[df.columns != "Tomorrow"])
+    df = df.dropna(subset=df.columns[df.columns != "Future_Close"])
     # df = df.dropna()
     return df

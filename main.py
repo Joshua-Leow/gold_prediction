@@ -25,7 +25,7 @@ def predict(train, test, predictors, model):
     from config import confidence
     # Ensure we're not using future data in training
     train_features = train[predictors].copy()
-    train_target = (train["Tomorrow"] > train["Close"]).astype(int)
+    train_target = (train["Future_Close"] > train["Close"]).astype(int)
 
     # Remove any rows where we don't have the target yet
     valid_train_mask = ~train_target.isna()
@@ -49,7 +49,7 @@ def backtest(data, model, predictors, start=2400, step=240):
         predictions = predict(train, test, predictors, model)
 
         # Get actual targets for the test set
-        test_targets = (test["Tomorrow"] > test["Close"]).astype(int)
+        test_targets = (test["Future_Close"] > test["Close"]).astype(int)
         combined = pd.concat([test_targets, predictions], axis=1)
         combined.columns = ["Target", "Predictions"]
 
@@ -74,7 +74,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
             # Scale features
             train_features = scaler.fit_transform(train[predictors])
             test_features = scaler.transform(test[predictors])
-            train_target = (train["Tomorrow"] > train["Close"]).astype(int)
+            train_target = (train["Future_Close"] > train["Close"]).astype(int)
 
             # Remove NaN values
             valid_mask = ~np.isnan(train_target)
@@ -86,7 +86,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
                 model.fit(train_features, train_target)
                 preds = predict_with_confidence(model, test_features, confidence)
                 predictions = pd.Series(preds, index=test.index)
-                test_targets = (test["Tomorrow"] > test["Close"]).astype(int)
+                test_targets = (test["Future_Close"] > test["Close"]).astype(int)
                 combined = pd.concat([test_targets, predictions], axis=1)
                 combined.columns = ["Target", "Predictions"]
                 all_predictions.append(combined)
