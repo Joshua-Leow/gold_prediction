@@ -35,7 +35,7 @@ def preprocess_data(df):
 
     from config import target_candle
     df["Future_Close"] = df["Close"].shift(-target_candle)
-    df["Target"] = (df["Future_Close"] > df["Close"] * (1+(profit_perc/100))).astype(int)
+    df["Target"] = (df["Future_Close"] > df["Close"] * (1+profit_perc/100)).astype(int)
     # df = df.loc["1990-01-01":].copy()
     return df
 
