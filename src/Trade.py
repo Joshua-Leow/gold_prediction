@@ -57,7 +57,7 @@ class BaseTrade(ABC):
         return False
 
     def close_trade(self, exit_price, exit_index):
-        print(f"                                                  "
+        print(f"                                             "
               f"Trade Closed at price: {exit_price}")
         self.exit_price = exit_price
         self.exit_index = pd.to_datetime(exit_index)
