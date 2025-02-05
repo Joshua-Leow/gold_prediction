@@ -1,6 +1,7 @@
 from abc import abstractmethod, ABC
 import pandas as pd
 
+from config import gap_between_trades
 from src.Stats import Stats
 
 
@@ -135,7 +136,8 @@ class TrailingLongTrade(TrailingStopMixin, LongTrade):
             self.trailing_stop_price = self.highest_price * (1 - self.trail_percent)
 
     def should_close_at_loss(self, high_price, low_price):
-        return low_price < self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+        # return low_price < self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+        return low_price < self.trailing_stop_price
 
 
 class TrailingShortTrade(TrailingStopMixin, ShortTrade):
@@ -150,7 +152,8 @@ class TrailingShortTrade(TrailingStopMixin, ShortTrade):
             self.trailing_stop_price = self.lowest_price * (1 + self.trail_percent)
 
     def should_close_at_loss(self, high_price, low_price):
-        return high_price > self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+        # return high_price > self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+        return high_price > self.trailing_stop_price
 
 
 class ScaledTrade(BaseTrade):
@@ -214,6 +217,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
     trades = []
     active_trade = None
     cash = initial_cash
+    rows_since_last_trade_closed = float('inf')  # Start with a high value
 
     try:
         # Ensure predictions has the correct index
@@ -234,10 +238,16 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                 if active_trade.try_to_close(row):
                     cash += active_trade.profit
 
+            # If there's no active trade or the previous trade is closed
+            if active_trade is None or active_trade.is_closed:
+                rows_since_last_trade_closed += 1
+
             # Check for new trade signal
             try:
                 pred = predictions.at[idx, "Predictions"]
-                if pred is not None and (active_trade is None or active_trade.is_closed):
+                if (pred is not None and
+                (active_trade is None or active_trade.is_closed) and
+                rows_since_last_trade_closed >= gap_between_trades):
                     if pred == 1:  # Long signal
                         active_trade = LongTrade(row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
