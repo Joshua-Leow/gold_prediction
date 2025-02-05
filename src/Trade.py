@@ -231,7 +231,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
         # print(f"Sample of predictions:\n{predictions[predictions['Predictions'].notnull()].head()}")
 
         for idx, row in df.iterrows():
-            print(f"idx: {idx}, row: {row.Close}")
+            # print(f"idx: {idx}, row: {row.Close}")
             if idx not in predictions.index:
                 continue
 

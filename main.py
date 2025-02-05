@@ -119,15 +119,15 @@ def evaluate_models(data, predictors, start=2400, step=240):
             if len(filtered_predictions) > 0:
                 precision = precision_score(filtered_predictions["Target"],
                                             filtered_predictions["Predictions"],
-                                            average="macro",
+                                            average="weighted",
                                             zero_division=0)
                 recall = recall_score(filtered_predictions["Target"],
                                       filtered_predictions["Predictions"],
-                                      average="macro",
+                                      average="weighted",
                                       zero_division=0)
                 f1 = f1_score(filtered_predictions["Target"],
                               filtered_predictions["Predictions"],
-                              average="macro",
+                              average="weighted",
                               zero_division=0)
 
                 trades, stats = simulate_trades(
