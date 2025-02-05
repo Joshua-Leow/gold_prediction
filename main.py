@@ -14,15 +14,15 @@ from src.processing import fetch_data, preprocess_data, final_processing
 
 def predict_with_confidence(model, features, confidence_threshold=0.7):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
-    # print(model.predict_proba(features))
     proba = model.predict_proba(features)
-    # print(proba)
+    print(model.classes_)
+    print(proba)
     long_proba = proba[:, 2]  # Probability of class 1 (long trade)
     short_proba = proba[:, 0]  # Probability of class 2 (short trade)
     predictions = np.full(len(proba), 0)  # Initialize with 0
     predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
     predictions[short_proba >= confidence_threshold] = -1  # Confident short trade
-    # print(predictions)
+    print(predictions)
     return predictions
 
 
@@ -108,7 +108,9 @@ def evaluate_models(data, predictors, start=2400, step=240):
 
         if all_predictions:
             predictions = pd.concat(all_predictions)
-            filtered_predictions = predictions.dropna(subset=["Predictions"])
+            # filtered_predictions = predictions.dropna(subset=["Predictions"])
+            # Filter out neutral (0) values
+            filtered_predictions = predictions[predictions["Predictions"] != 0].dropna(subset=["Predictions"])
             print(f"    5.{model_counter}.1 Total number of predictions: {filtered_predictions.shape[0]}")
             print(filtered_predictions[filtered_predictions["Predictions"]==0])
             print(filtered_predictions[filtered_predictions["Predictions"]==1])
