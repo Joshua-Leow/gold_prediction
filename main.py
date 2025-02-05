@@ -16,13 +16,18 @@ def predict_with_confidence(model, features, confidence_threshold=0.7):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
     proba = model.predict_proba(features)
     # print(model.classes_)
-    print(proba)
+    # print(proba)
     long_proba = proba[:, 2]  # Probability of class 1 (long trade)
     short_proba = proba[:, 0]  # Probability of class 2 (short trade)
     predictions = np.full(len(proba), 0)  # Initialize with 0
     predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
     predictions[short_proba >= confidence_threshold] = -1  # Confident short trade
-    print(predictions)
+
+    # Count occurrences of each value
+    count_minus_1 = np.count_nonzero(predictions == -1)
+    count_0 = np.count_nonzero(predictions == 0)
+    count_1 = np.count_nonzero(predictions == 1)
+    print(f"Count of SHORT: {count_minus_1} , NEUTRAL: {count_0} , LONG: {count_1} predictions")
     return predictions
 
 
@@ -73,6 +78,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
         print(f"  5.{model_counter} Evaluating {model_name}...")
         all_predictions = []
         for i in range(start, data.shape[0], step):
+            print(f"    Step {i}/{data.shape[0]}: ", end='')
             train = data.iloc[0:i - target_candle].copy()
 
             train_features = train[predictors].copy()
