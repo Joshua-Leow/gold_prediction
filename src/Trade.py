@@ -45,9 +45,9 @@ class BaseTrade(ABC):
         self.take_stop_loss_val = self.calculate_stop_loss()
 
     def try_to_close(self, curr_candle):
+        print(f"curr_candle high: {curr_candle.High}, low: {curr_candle.Low}")
         if self.is_closed:
             return False
-
         if self.should_close_at_loss(curr_candle.High, curr_candle.Low):
             self.close_trade(self.take_stop_loss_val, curr_candle.name)
             return True
@@ -57,6 +57,7 @@ class BaseTrade(ABC):
         return False
 
     def close_trade(self, exit_price, exit_index):
+        print(f"Trade Closed at price: {exit_price}")
         self.exit_price = exit_price
         self.exit_index = pd.to_datetime(exit_index)
         self.profit = self.calculate_profit(exit_price)
@@ -230,6 +231,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
         # print(f"Sample of predictions:\n{predictions[predictions['Predictions'].notnull()].head()}")
 
         for idx, row in df.iterrows():
+            print(f"idx: {idx}, row: {row.Close}")
             if idx not in predictions.index:
                 continue
 
@@ -246,20 +248,19 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             try:
                 pred = predictions.at[idx, "Predictions"]
                 if (pred is not None and
-                (active_trade is None or active_trade.is_closed) and
-                rows_since_last_trade_closed >= gap_between_trades):
+                (active_trade is None or active_trade.is_closed)):
                     if pred == 1:  # Long signal
                         active_trade = LongTrade(row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         trades.append(active_trade)
-                        # print(f"Created LONG trade at {idx} with entry price {row.Close}")
+                        print(f"Created LONG trade at {idx} with entry price {row.Close}")
                     elif pred == 0:  # Short signal
                         active_trade = ShortTrade(row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingShortTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledShortTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         trades.append(active_trade)
-                        # print(f"Created SHORT trade at {idx} with entry price {row.Close}")
+                        print(f"Created SHORT trade at {idx} with entry price {row.Close}")
             except KeyError as e:
                 print(f"KeyError at index {idx}: {e}")
                 continue
