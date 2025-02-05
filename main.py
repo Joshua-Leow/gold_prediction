@@ -14,10 +14,11 @@ from src.processing import fetch_data, preprocess_data, final_processing
 
 def predict_with_confidence(model, features, confidence_threshold=0.7):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
-    proba = model.predict_proba(features)[:, 1]  # Probability of class 1 (long trade)
-    predictions = np.full(len(proba), np.nan)  # Initialize with NaN
-    predictions[proba >= confidence_threshold] = 1  # Confident long trade
-    predictions[proba < (1 - confidence_threshold)] = -1  # Confident short trade
+    long_proba = model.predict_proba(features)[:, 1]  # Probability of class 1 (long trade)
+    short_proba = model.predict_proba(features)[:, 2]  # Probability of class 1 (long trade)
+    predictions = np.full(len(long_proba), np.nan)  # Initialize with NaN
+    predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
+    predictions[short_proba < (1 - confidence_threshold)] = -1  # Confident short trade
     return predictions
 
 
