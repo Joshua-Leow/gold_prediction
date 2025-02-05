@@ -135,10 +135,10 @@ def main():
     df = preprocess_data(df)
 
     print("3. Feature Engineering...")
-    predictors = None
+    predictors = []
     print("  3.1 Adding MACD and price features...")
     macd_predictors, df = get_macd_features(df)
-    predictors = macd_predictors
+    predictors += macd_predictors
     print("  3.2 Adding price ratios and trends...")
     price_predictors, df = get_close_ratio_and_trend(df)
     predictors += price_predictors
