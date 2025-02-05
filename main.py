@@ -96,7 +96,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
             # Fit and predict
             try:
                 model.fit(train_features, train_target)
-                preds = predict_with_confidence(model, predictors, confidence)
+                preds = predict_with_confidence(model, test[predictors], confidence)
                 predictions = pd.Series(preds, index=test.index)
 
                 # Define test target for evaluation
