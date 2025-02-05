@@ -131,10 +131,10 @@ def main():
     print("1. Fetching data...")
     df = fetch_data(symbol, interval)
 
-    print("2. Pre-processing data...")
+    print("\n2. Pre-processing data...")
     df = preprocess_data(df)
 
-    print("3. Feature Engineering...")
+    print("\n3. Feature Engineering...")
     predictors = []
     print("  3.1 Adding MACD and price features...")
     macd_predictors, df = get_macd_features(df)
@@ -153,10 +153,10 @@ def main():
     predictors += garman_klass_predictors
     print("Features used:", predictors)
 
-    print("4. Final Processing of data...")
+    print("\n4. Final Processing of data...")
     df = final_processing(df)
 
-    print("5. Evaluating multiple models...")
+    print("\n5. Evaluating multiple models...")
     predictions, trades, metrics = evaluate_models(df, predictors)
 
     print("\n6. Comparing model performances...")
@@ -169,7 +169,7 @@ def main():
 
     # Find best model based on return
     best_model = max(metrics.items(), key=lambda x: x[1].precision)
-    print(f"\nBest performing model (by precision): {best_model[0]}")
+    print(f"\n7. Best performing model (by precision): {best_model[0]}")
     print(best_model[1])
 
     # print("  5. Preparing model...")
@@ -194,8 +194,8 @@ def main():
     # # print(f"\nTrading Statistics for TP: {TP:.4f}, SL: {SL:.4f}")
     # print(stats)
     #
-    print("  9. Plotting Chart...")
-    plot_finplot(df, predictions, trades)
+    # print("  9. Plotting Chart...")
+    # plot_finplot(df, predictions, trades)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
     #       "#########################################################\n")
