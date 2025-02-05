@@ -117,6 +117,12 @@ def evaluate_models(data, predictors, start=2400, step=240):
             print(filtered_predictions[filtered_predictions["Predictions"]==-1])
 
             if len(filtered_predictions) > 0:
+                # Final Thoughts:
+                # Focus on Recall if you want to capture most trading opportunities, even at the cost of some false positives.
+                # Focus on Precision if you want to avoid false trades, even at the cost of missing some real ones.
+                # F1 Score is useful if you want both accuracy & trade capture balance.
+                # 🔹 If precision is high but recall is low, your model predicts accurately but misses too many trades.
+                # 🔹 If recall is high but precision is low, your model trades too often and incorrectly.
                 precision = precision_score(filtered_predictions["Target"],
                                             filtered_predictions["Predictions"],
                                             average="weighted",
