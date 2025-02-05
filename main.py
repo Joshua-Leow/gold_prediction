@@ -108,9 +108,8 @@ def evaluate_models(data, predictors, start=2400, step=240):
 
         if all_predictions:
             predictions = pd.concat(all_predictions)
-            predictions = predictions.dropna(subset=["Predictions"])
             # Filter out neutral (0) values
-            filtered_predictions = predictions[predictions["Predictions"] != 0]
+            filtered_predictions = predictions[predictions["Predictions"] != 0].dropna(subset=["Predictions"])
             print(f"    5.{model_counter}.1 Total number of predictions: {filtered_predictions.shape[0]}")
             print(filtered_predictions[filtered_predictions["Predictions"]==0])
             print(filtered_predictions[filtered_predictions["Predictions"]==1])
