@@ -78,7 +78,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
         print(f"  5.{model_counter} Evaluating {model_name}...")
         all_predictions = []
         for i in range(start, data.shape[0], step):
-            print(f"    Step {i}/{data.shape[0]}: ", end='')
+            print(f"    Step {i}/{data.shape[0]} ({i/data.shape[0]*100:.2f}%): ", end='')
             train = data.iloc[0:i - target_candle].copy()
 
             train_features = train[predictors].copy()
