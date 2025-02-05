@@ -14,11 +14,15 @@ from src.processing import fetch_data, preprocess_data, final_processing
 
 def predict_with_confidence(model, features, confidence_threshold=0.7):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
-    long_proba = model.predict_proba(features)[:, 1]  # Probability of class 1 (long trade)
-    short_proba = model.predict_proba(features)[:, 2]  # Probability of class 1 (long trade)
-    predictions = np.full(len(long_proba), np.nan)  # Initialize with NaN
+    # print(model.predict_proba(features))
+    proba = model.predict_proba(features)
+    # print(proba)
+    long_proba = proba[:, 2]  # Probability of class 1 (long trade)
+    short_proba = proba[:, 0]  # Probability of class 2 (short trade)
+    predictions = np.full(len(proba), 0)  # Initialize with 0
     predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
-    predictions[short_proba < (1 - confidence_threshold)] = -1  # Confident short trade
+    predictions[short_proba >= confidence_threshold] = -1  # Confident short trade
+    # print(predictions)
     return predictions
 
 
@@ -62,38 +66,28 @@ def evaluate_models(data, predictors, start=2400, step=240):
     predictions, trades = None, None
     models = get_models()
     model_metrics = {}
-    scaler = StandardScaler()
     model_counter = 0
 
     for model_name, model in models.items():
         model_counter += 1
         print(f"  5.{model_counter} Evaluating {model_name}...")
         all_predictions = []
-
         for i in range(start, data.shape[0], step):
             train = data.iloc[0:i - target_candle].copy()
-            test = data.iloc[i:(i + step)].copy()
 
-            # Scale features
-            # train_features = scaler.fit_transform(train[predictors])
             train_features = train[predictors].copy()
-            # test_features = scaler.transform(test[predictors])
             # Define training target: 1 for long, -1 for short, 0 otherwise
             train_target = np.where(
-                train["Future_Close"] > train["Close"] + (train["Close"] * profit_perc / 100), 1,
-                np.where(train["Future_Close"] < train["Close"] - (train["Close"] * profit_perc / 100), -1, 0)
+                train["Future_Close"] > train["Close"] + (train["Close"] * profit_perc / 100)*0.1, 1,
+                np.where(train["Future_Close"] < train["Close"] - (train["Close"] * profit_perc / 100)*0.1, -1, 0)
             )
-
-            # Remove any rows where we don't have the target yet
-            # valid_train_mask = ~train_target.isna()
-            # train_features = train_features[valid_train_mask]
-            # train_target = train_target[valid_train_mask]
 
             # Remove NaN values
             valid_mask = ~np.isnan(train_target)
             train_features = train_features[valid_mask]
             train_target = train_target[valid_mask]
 
+            test = data.iloc[i:(i + step)].copy()
             # Fit and predict
             try:
                 model.fit(train_features, train_target)
@@ -102,8 +96,8 @@ def evaluate_models(data, predictors, start=2400, step=240):
 
                 # Define test target for evaluation
                 test_target = np.where(
-                    test["Future_Close"] > test["Close"] + (test["Close"] * profit_perc / 100), 1,
-                    np.where(test["Future_Close"] < test["Close"] - (test["Close"] * profit_perc / 100), -1, 0)
+                    test["Future_Close"] > test["Close"] + (test["Close"] * profit_perc / 100)*0.1, 1,
+                    np.where(test["Future_Close"] < test["Close"] - (test["Close"] * profit_perc / 100)*0.1, -1, 0)
                 )
                 combined = pd.concat([pd.Series(test_target, index=test.index), predictions], axis=1)
                 combined.columns = ["Target", "Predictions"]
@@ -123,12 +117,15 @@ def evaluate_models(data, predictors, start=2400, step=240):
             if len(filtered_predictions) > 0:
                 precision = precision_score(filtered_predictions["Target"],
                                             filtered_predictions["Predictions"],
+                                            average="macro",
                                             zero_division=0)
                 recall = recall_score(filtered_predictions["Target"],
                                       filtered_predictions["Predictions"],
+                                      average="macro",
                                       zero_division=0)
                 f1 = f1_score(filtered_predictions["Target"],
                               filtered_predictions["Predictions"],
+                              average="macro",
                               zero_division=0)
 
                 trades, stats = simulate_trades(
@@ -216,8 +213,8 @@ def main():
     # # print(f"\nTrading Statistics for TP: {TP:.4f}, SL: {SL:.4f}")
     # print(stats)
     #
-    # print("  9. Plotting Chart...")
-    # plot_finplot(df, predictions, trades)
+    print("  9. Plotting Chart...")
+    plot_finplot(df, predictions, trades)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
     #       "#########################################################\n")

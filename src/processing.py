@@ -6,7 +6,7 @@ import yfinance as yf
 
 import pandas as pd
 
-from config import profit_perc
+from config import profit_perc, target_candle
 
 
 def get_period(interval):
@@ -38,13 +38,13 @@ def preprocess_data(df):
     from config import target_candle
     df["Future_Close"] = df["Close"].shift(-target_candle)
     df["Target"] = np.where(
-        df["Future_Close"] > df["Close"] + (df["Close"] * profit_perc / 100), 1,
-        np.where(df["Future_Close"] < df["Close"] - (df["Close"] * profit_perc / 100), -1, 0)
+        df["Future_Close"] > df["Close"] + (df["Close"] * profit_perc / 100)*0.1, 1,
+        np.where(df["Future_Close"] < df["Close"] - (df["Close"] * profit_perc / 100)*0.1, -1, 0)
     )
     # df = df.loc["1990-01-01":].copy()
     return df
 
 def final_processing(df):
-    df = df.dropna(subset=df.columns[df.columns != "Future_Close"])
-    # df = df.dropna()
+    df = df[:-target_candle]
+    # print(df[df["Target"]==1])
     return df
