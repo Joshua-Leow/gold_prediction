@@ -6,7 +6,7 @@ import yfinance as yf
 
 import pandas as pd
 
-from config import profit_perc, target_candle
+from config import profit_perc, target_candle, define_target_labels
 
 
 def get_period(interval):
@@ -31,18 +31,17 @@ def fetch_data(symbol, interval):
         print(f"Saved file to data/{symbol}_{interval}.csv")
     return df
 
+
 def preprocess_data(df):
     df.index = pd.to_datetime(df.index, utc=True).map(lambda x: x.tz_convert('Singapore'))
     df.columns = df.columns.droplevel(1)
 
     from config import target_candle
     df["Future_Close"] = df["Close"].shift(-target_candle)
-    df["Target"] = np.where(
-        df["Future_Close"] > df["Close"] + (df["Close"] * profit_perc / 100), 1,
-        np.where(df["Future_Close"] < df["Close"] - (df["Close"] * profit_perc / 100), -1, 0)
-    )
+    df["Target"] = define_target_labels(df)
     # df = df.loc["1990-01-01":].copy()
     return df
+
 
 def final_processing(df):
     df = df[:-target_candle]
