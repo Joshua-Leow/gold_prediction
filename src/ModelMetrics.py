@@ -37,4 +37,4 @@ def compute_model_metrics(model_name, filtered_predictions, data, predictions):
     trades, stats = simulate_trades(data, predictions, profit_perc=profit_perc / 100,
                                     stop_loss_perc=stop_loss_perc / 100)
 
-    return ModelMetrics(model_name=model_name, precision=precision, recall=recall, f1=f1, trading_stats=stats)
+    return trades, ModelMetrics(model_name=model_name, precision=precision, recall=recall, f1=f1, trading_stats=stats)

@@ -137,7 +137,7 @@ from src.processing import fetch_data, preprocess_data, final_processing
 
 def evaluate_models(data, predictors, start=2400, step=240):
     models = get_models()
-    model_metrics = {}
+    model_metrics, model_predictions, model_trades = {}, {}, {}
 
     for model_counter, (model_name, model) in enumerate(models.items(), start=1):
         print(f"  5.{model_counter} Evaluating {model_name}...")
@@ -145,9 +145,11 @@ def evaluate_models(data, predictors, start=2400, step=240):
 
         if predictions is not None:
             filtered_predictions = predictions[predictions["Predictions"] != 0].dropna(subset=["Predictions"])
-            model_metrics[model_name] = compute_model_metrics(model_name, filtered_predictions, data, predictions)
+            trades, model_metrics[model_name] = compute_model_metrics(model_name, filtered_predictions, data, predictions)
+            model_predictions[model_name] = predictions
+            model_trades[model_name] = trades
 
-    return model_metrics
+    return model_predictions, model_trades, model_metrics
 
 
 def main():
@@ -180,10 +182,10 @@ def main():
     df = final_processing(df)
 
     print("\n5. Evaluating multiple models...")
-    predictions, trades, metrics = evaluate_models(df, predictors)
+    model_predictions, model_trades, model_metrics = evaluate_models(df, predictors)
 
     print("\n6. Comparing model performances...")
-    trading_comparison, ml_metrics_comparison = compare_models_performance(metrics)
+    trading_comparison, ml_metrics_comparison = compare_models_performance(model_metrics)
 
     print("\n\t6.1 Trading Performance Comparison:")
     print(trading_comparison)
@@ -191,12 +193,16 @@ def main():
     print(ml_metrics_comparison)
 
     # Find best model based on return
-    best_model = max(metrics.items(), key=lambda x: x[1].trading_stats.perc_return)
-    print(f"\n\t6.3 Best performing model (by return): {best_model[0]}")
-    print(best_model[1])
+    best_model_name, best_model_metrics = max(model_metrics.items(), key=lambda x: x[1].trading_stats.perc_return)
+    print(f"\n\t6.3 Best performing model (by return): {best_model_name}")
+    print(best_model_metrics)
+
+    # Get predictions and trades of the best model
+    predictions_of_best_model = model_predictions[best_model_name]
+    trades_of_best_model = model_trades[best_model_name]
 
     print("\n7. Plotting Chart...")
-    plot_finplot(df, predictions, trades)
+    plot_finplot(df, predictions_of_best_model, trades_of_best_model)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
     #       "#########################################################\n")

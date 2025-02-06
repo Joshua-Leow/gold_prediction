@@ -10,28 +10,28 @@ from config import confidence, target_candle, define_target_labels
 def get_models():
     models = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=200,
+            n_estimators=20,
             min_samples_split=50,
             max_depth=10,
             random_state=1                     )
-        ,"XGBoost": XGBClassifier(
-            n_estimators=300,
-            learning_rate=0.05,
-            max_depth=6,
-            min_child_weight=2,
-            random_state=1       )
-        ,"LightGBM": LGBMClassifier(
-            n_estimators=300,
-            learning_rate=0.05,
-            max_depth=6,
-            num_leaves=31,
-            random_state=1         )
-        ,"Gradient Boosting": GradientBoostingClassifier(
-            n_estimators=300,
-            learning_rate=0.05,
-            max_depth=6,
-            min_samples_split=50,
-            random_state=1                              )
+        # ,"XGBoost": XGBClassifier(
+        #     n_estimators=300,
+        #     learning_rate=0.05,
+        #     max_depth=6,
+        #     min_child_weight=2,
+        #     random_state=1       )
+        # ,"LightGBM": LGBMClassifier(
+        #     n_estimators=300,
+        #     learning_rate=0.05,
+        #     max_depth=6,
+        #     num_leaves=31,
+        #     random_state=1         )
+        # ,"Gradient Boosting": GradientBoostingClassifier(
+        #     n_estimators=300,
+        #     learning_rate=0.05,
+        #     max_depth=6,
+        #     min_samples_split=50,
+        #     random_state=1                              )
     }
     return models
 
@@ -95,17 +95,17 @@ def compare_models_performance(metrics):
 
     # Trading performance comparison
     trading_data = {
-        'Win Rate (%)': [m.trading_stats.win_rate for m in metrics.values()],
-        'Return (%)': [m.trading_stats.perc_return for m in metrics.values()],
-        'Total Profit ($)': [m.trading_stats.total_profit for m in metrics.values()],
-        'Number of Trades': [m.trading_stats.num_trades for m in metrics.values()]
+        'Win Rate (%)': [m.trading_stats.win_rate for m in metrics.values()[2]],
+        'Return (%)': [m.trading_stats.perc_return for m in metrics.values()[2]],
+        'Total Profit ($)': [m.trading_stats.total_profit for m in metrics.values()[2]],
+        'Number of Trades': [m.trading_stats.num_trades for m in metrics.values()[2]]
     }
 
     # ML metrics comparison
     ml_metrics_data = {
-        'Precision': [m.precision for m in metrics.values()],
-        'Recall': [m.recall for m in metrics.values()],
-        'F1 Score': [m.f1 for m in metrics.values()]
+        'Precision': [m.precision for m in metrics.values()[2]],
+        'Recall': [m.recall for m in metrics.values()[2]],
+        'F1 Score': [m.f1 for m in metrics.values()[2]]
     }
 
     trading_df = pd.DataFrame(trading_data, index=model_names)
