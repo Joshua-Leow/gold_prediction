@@ -57,7 +57,7 @@ class BaseTrade(ABC):
         return False
 
     def close_trade(self, exit_price, exit_index):
-        print(f"                                            "
+        print(f"                                             "
               f"Trade Closed at price: {exit_price}")
         self.exit_price = exit_price
         self.exit_index = pd.to_datetime(exit_index)
@@ -257,7 +257,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_closed = 0
                         trades.append(active_trade)
-                        print(f"  Created LONG trade at {idx} with entry price {row.Close}")
+                        print(f"  Created LONG  trade at {idx} with entry price {row.Close}")
                     elif pred == -1:  # Short signal
                         active_trade = ShortTrade(row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingShortTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
