@@ -13,9 +13,9 @@ This project implements a machine learning-based trading system for gold futures
   - MACD (Moving Average Convergence Divergence)
   - RSI (Relative Strength Index)
   - Bollinger Bands
-  - Volume indicators
-  - Rate of Change (ROC)
+  - Garman Klass Volume indicators
   - Average True Range (ATR)
+  - Rate of Change (ROC)
 - Automated backtesting system
 - Trading simulation with configurable parameters
 - Performance visualization using FinPlot
@@ -53,6 +53,7 @@ gold_prediction/
 ├── src/
 │   ├── Trade.py                # Trading logic implementation
 │   ├── Stats.py                # Statistics calculation
+│   ├── ModelMetrics.py         # Model Metrics dataclass
 │   ├── processing.py           # Chart visualization
 │   ├── feature_engineering.py  # Chart visualization
 │   ├── compare_models.py       # Chart visualization
@@ -73,6 +74,12 @@ confidence = 0.7          # Prediction confidence threshold
 target_candle = 7         # Future candle to predict
 profit_perc = 1.00        # Take profit percentage
 stop_loss_perc = 0.10     # Stop loss percentage
+
+def define_target_labels(df):
+    """Function that returns nparray[-1,0,1]
+    -1: represents prediction for short trades
+     0: represents prediction of neutral price movement
+     1: represents prediction for long trades"""
 ```
 
 ## Usage
