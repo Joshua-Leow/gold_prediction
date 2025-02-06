@@ -95,17 +95,17 @@ def compare_models_performance(metrics):
 
     # Trading performance comparison
     trading_data = {
-        'Win Rate (%)': [m.trading_stats.win_rate for m in metrics.values()[2]],
-        'Return (%)': [m.trading_stats.perc_return for m in metrics.values()[2]],
-        'Total Profit ($)': [m.trading_stats.total_profit for m in metrics.values()[2]],
-        'Number of Trades': [m.trading_stats.num_trades for m in metrics.values()[2]]
+        'Win Rate (%)': [m.trading_stats.win_rate for m in metrics.values()],
+        'Return (%)': [m.trading_stats.perc_return for m in metrics.values()],
+        'Total Profit ($)': [m.trading_stats.total_profit for m in metrics.values()],
+        'Number of Trades': [m.trading_stats.num_trades for m in metrics.values()]
     }
 
     # ML metrics comparison
     ml_metrics_data = {
-        'Precision': [m.precision for m in metrics.values()[2]],
-        'Recall': [m.recall for m in metrics.values()[2]],
-        'F1 Score': [m.f1 for m in metrics.values()[2]]
+        'Precision': [m.precision for m in metrics.values()],
+        'Recall': [m.recall for m in metrics.values()],
+        'F1 Score': [m.f1 for m in metrics.values()]
     }
 
     trading_df = pd.DataFrame(trading_data, index=model_names)
