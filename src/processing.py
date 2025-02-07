@@ -1,12 +1,11 @@
 import os
 from pathlib import Path
 
-import numpy as np
 import yfinance as yf
 
 import pandas as pd
 
-from config import profit_perc, target_candle, define_target_labels
+from config import target_candle, define_target_labels
 
 
 def get_period(interval):
