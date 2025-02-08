@@ -49,14 +49,21 @@ def prepare_training_data(data, predictors, i):
 def predict_with_confidence(model, features, confidence_threshold=0.7):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
     proba = model.predict_proba(features)
-    print(model.classes_)
+    print(list(model.classes_))
     # print(model.feature_importances_)
     # print(proba)
-    long_proba = proba[:, 2]  # Probability of class 1 (long trade)
-    short_proba = proba[:, 0]  # Probability of class 2 (short trade)
+    long_proba, short_proba = None, None
+    if len(list(model.classes_)) == 3:
+        long_proba = proba[:, 2]  # Probability of class 1 (long trade)
+        short_proba = proba[:, 0]  # Probability of class 2 (short trade)
+    elif 1 in list(model.classes_):
+        long_proba = proba[:, 1]  # Probability of class 1 (long trade)
+    elif -1 in list(model.classes_):
+        short_proba = proba[:, 0]  # Probability of class 2 (short trade)
+
     predictions = np.full(len(proba), 0)  # Initialize with 0
-    predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
-    predictions[short_proba >= confidence_threshold] = -1  # Confident short trade
+    if long_proba is not None: predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
+    if short_proba is not None: predictions[short_proba >= confidence_threshold] = -1  # Confident short trade
 
     # Count occurrences of each value
     count_minus_1 = np.count_nonzero(predictions == -1)
@@ -64,6 +71,8 @@ def predict_with_confidence(model, features, confidence_threshold=0.7):
     count_1 = np.count_nonzero(predictions == 1)
     print(f"Count of SHORT: {count_minus_1} , NEUTRAL: {count_0} , LONG: {count_1} predictions")
     return predictions
+
+
 
 
 def create_combined_predictions(test, preds):
@@ -79,10 +88,10 @@ def evaluate_model(model, model_name, data, predictors, start, step, model_count
         train, train_target = prepare_training_data(data, predictors, i)
         test = data.iloc[i:(i + step)].copy()
 
+        model.fit(train, train_target)
+        # print(test[predictors])
+        preds = predict_with_confidence(model, test[predictors], confidence)
         try:
-            model.fit(train, train_target)
-            # print(test[predictors])
-            preds = predict_with_confidence(model, test[predictors], confidence)
             combined = create_combined_predictions(test, preds)
             all_predictions.append(combined)
         except Exception as e:

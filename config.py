@@ -5,7 +5,7 @@ symbol = 'GC=F'                    # Trading symbol
 interval = '1h'                    # Time interval
 confidence = 0.40                  # Prediction confidence threshold
 target_candle = 7                  # Future candle to predict
-profit_perc = 20.70                 # Take profit percentage
+profit_perc = 2.00                 # Take profit percentage
 stop_loss_perc = profit_perc/3     # Stop loss percentage
 gap_between_trades = 3             # Number of candles to wait before making the next trade
 
