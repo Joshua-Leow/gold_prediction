@@ -1,11 +1,11 @@
 import numpy as np
 
 symbol = 'GC=F'                          # Trading symbol
-# symbol = 'GRAPHITE.NS'                 # Trading symbol
+# symbol = 'TSLA'                 # Trading symbol
 interval = '1h'                          # Time interval
-confidence = 0.70                        # Prediction confidence threshold
-target_candle = 120                      # Future candle to predict
-profit_perc = 2.00                       # Take profit percentage
+confidence = 0.5                        # Prediction confidence threshold
+target_candle = 240                      # Future candle to predict
+profit_perc = 4.00                       # Take profit percentage
 stop_loss_perc = profit_perc/4           # Stop loss percentage
 gap_between_trades = 0                   # Number of candles to wait before making the next trade
 feature_horizons = [2, 8, 32, 128, 512]  # Feature Horizons to be trained with

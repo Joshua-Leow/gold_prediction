@@ -10,9 +10,9 @@ from config import confidence, target_candle, define_target_labels
 def get_models():
     models = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=200,
+            n_estimators=500,
             min_samples_split=50,
-            max_depth=10,
+            max_depth=50,
             random_state=1                     )
         # ,"XGBoost": XGBClassifier(
         #     n_estimators=300,
@@ -57,13 +57,15 @@ def predict_with_confidence(model, features, confidence_threshold=0.7):
         long_proba = proba[:, 2]  # Probability of class 1 (long trade)
         short_proba = proba[:, 0]  # Probability of class 2 (short trade)
     elif 1 in list(model.classes_):
+        print("Short probability missing")
         long_proba = proba[:, 1]  # Probability of class 1 (long trade)
     elif -1 in list(model.classes_):
+        print("Long probability missing")
         short_proba = proba[:, 0]  # Probability of class 2 (short trade)
 
     predictions = np.full(len(proba), 0)  # Initialize with 0
-    if long_proba is not None: predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
-    if short_proba is not None: predictions[short_proba >= confidence_threshold*1.1] = -1  # Confident short trade
+    if long_proba  is not None: predictions[long_proba  >= confidence_threshold] = 1  # Confident long trade
+    if short_proba is not None: predictions[short_proba >= confidence_threshold*1.6] = -1  # Confident short trade
 
     # Count occurrences of each value
     count_minus_1 = np.count_nonzero(predictions == -1)
@@ -97,7 +99,6 @@ def evaluate_model(model, model_name, data, predictors, start, step, model_count
         except Exception as e:
             print(f"Error in {model_name}: {e}")
             continue
-
     return pd.concat(all_predictions) if all_predictions else None
 
 
