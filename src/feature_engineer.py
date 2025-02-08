@@ -88,7 +88,8 @@ def get_macd_features(df, horizons=None):
     """Calculate MACD features with different horizons"""
     # Calculate basic MACD
     if horizons is None:
-        horizons = [2, 5, 60, 250, 1000]
+        from config import feature_horizons
+        horizons = feature_horizons
     macd = df.Close.ewm(span=12, adjust=False).mean() - df.Close.ewm(span=26, adjust=False).mean()
     df['macd'] = macd
     signal = macd.ewm(span=9, adjust=False).mean()
@@ -112,7 +113,8 @@ def get_macd_features(df, horizons=None):
 
 def get_close_ratio_and_trend(df, horizons=None):
     if horizons is None:
-        horizons = [2, 5, 60, 250, 1000]
+        from config import feature_horizons
+        horizons = feature_horizons
     new_predictors = []
 
     for horizon in horizons:

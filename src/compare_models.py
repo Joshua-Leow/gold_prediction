@@ -10,7 +10,7 @@ from config import confidence, target_candle, define_target_labels
 def get_models():
     models = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=20,
+            n_estimators=200,
             min_samples_split=50,
             max_depth=10,
             random_state=1                     )
