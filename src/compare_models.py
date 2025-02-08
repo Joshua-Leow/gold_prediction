@@ -46,10 +46,10 @@ def prepare_training_data(data, predictors, i):
     return train_features[valid_mask], train_target[valid_mask]
 
 
-def predict_with_confidence(model, features, confidence_threshold=0.7):
+def predict_with_confidence(model, features, confidence_threshold=0.4):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
     proba = model.predict_proba(features)
-    print(list(model.classes_))
+    # print(list(model.classes_))
     # print(model.feature_importances_)
     # print(proba)
     long_proba, short_proba = None, None
@@ -63,13 +63,13 @@ def predict_with_confidence(model, features, confidence_threshold=0.7):
 
     predictions = np.full(len(proba), 0)  # Initialize with 0
     if long_proba is not None: predictions[long_proba >= confidence_threshold] = 1  # Confident long trade
-    if short_proba is not None: predictions[short_proba >= confidence_threshold] = -1  # Confident short trade
+    if short_proba is not None: predictions[short_proba >= confidence_threshold*1.1] = -1  # Confident short trade
 
     # Count occurrences of each value
     count_minus_1 = np.count_nonzero(predictions == -1)
     count_0 = np.count_nonzero(predictions == 0)
     count_1 = np.count_nonzero(predictions == 1)
-    print(f"Count of SHORT: {count_minus_1} , NEUTRAL: {count_0} , LONG: {count_1} predictions")
+    print(f"Count of SHORT: {count_minus_1} , NEUTRAL: {count_0} , LONG: {count_1} , TOTAL: {count_minus_1+count_1} predictions")
     return predictions
 
 
