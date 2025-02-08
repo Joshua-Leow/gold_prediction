@@ -40,6 +40,7 @@ def prepare_training_data(data, predictors, i):
     train = data.iloc[0:i - target_candle].copy()
     train_features = train[predictors].copy()
     train_target = define_target_labels(train)
+    # print(np.unique(train_target))
 
     valid_mask = ~np.isnan(train_target)
     return train_features[valid_mask], train_target[valid_mask]
@@ -48,7 +49,8 @@ def prepare_training_data(data, predictors, i):
 def predict_with_confidence(model, features, confidence_threshold=0.7):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
     proba = model.predict_proba(features)
-    # print(model.classes_)
+    print(model.classes_)
+    # print(model.feature_importances_)
     # print(proba)
     long_proba = proba[:, 2]  # Probability of class 1 (long trade)
     short_proba = proba[:, 0]  # Probability of class 2 (short trade)
@@ -79,6 +81,7 @@ def evaluate_model(model, model_name, data, predictors, start, step, model_count
 
         try:
             model.fit(train, train_target)
+            # print(test[predictors])
             preds = predict_with_confidence(model, test[predictors], confidence)
             combined = create_combined_predictions(test, preds)
             all_predictions.append(combined)

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import numpy as np
 import yfinance as yf
 
 import pandas as pd
@@ -36,6 +37,8 @@ def preprocess_data(df):
     df.columns = df.columns.droplevel(1)
 
     from config import target_candle
+    df["Future_High"] = df["High"].shift(-1).rolling(window=target_candle, min_periods=1).max()
+    df["Future_Low"] = df["Low"].shift(-1).rolling(window=target_candle, min_periods=1).min()
     df["Future_Close"] = df["Close"].shift(-target_candle)
     df["Target"] = define_target_labels(df)
     # df = df.loc["1990-01-01":].copy()
