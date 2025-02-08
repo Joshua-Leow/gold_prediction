@@ -248,9 +248,9 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             # Check for new trade signal
             try:
                 pred = predictions.at[idx, "Predictions"]
-                if (pred is not None and pred != 0 and
-                (active_trade is None or active_trade.is_closed) and
-                rows_since_last_trade_closed > gap_between_trades):
+                if (pred is not None and pred != 0
+                and (active_trade is None or active_trade.is_closed)
+                and rows_since_last_trade_closed > gap_between_trades):
                     if pred == 1:  # Long signal
                         active_trade = LongTrade(row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)

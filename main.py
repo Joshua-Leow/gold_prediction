@@ -135,7 +135,7 @@ from src.processing import fetch_data, preprocess_data, final_processing
 #     return predictions, trades, model_metrics
 
 
-def evaluate_models(data, predictors, start=2400, step=240):
+def evaluate_models(data, predictors, start=4800, step=240):
     models = get_models()
     model_metrics, model_predictions, model_trades = {}, {}, {}
 

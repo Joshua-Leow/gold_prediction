@@ -46,7 +46,7 @@ def prepare_training_data(data, predictors, i):
     return train_features[valid_mask], train_target[valid_mask]
 
 
-def predict_with_confidence(model, features, confidence_threshold=0.4):
+def predict_with_confidence(model, features, confidence_threshold=0.7):
     """Make predictions with confidence threshold for long (1) and short (-1) trades"""
     proba = model.predict_proba(features)
     # print(list(model.classes_))
