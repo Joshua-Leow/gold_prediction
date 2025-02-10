@@ -1,7 +1,9 @@
 from abc import abstractmethod, ABC
+from datetime import timedelta
+
 import pandas as pd
 
-from config import gap_between_trades
+from config import gap_between_trades, target_candle
 from src.Stats import Stats
 
 
@@ -49,6 +51,7 @@ class BaseTrade(ABC):
         if self.is_closed:
             return False
         if self.should_close_at_loss(curr_candle.High, curr_candle.Low):
+            print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
             self.close_trade(self.take_stop_loss_val, curr_candle.name)
             print("(Loss)")
             return True
@@ -59,8 +62,7 @@ class BaseTrade(ABC):
         return False
 
     def close_trade(self, exit_price, exit_index):
-        print(f"                                             "
-              f"Trade Closed at price: {exit_price:.2f}", end=' ')
+        print(f"Trade Closed at price: {exit_price:.2f}", end=' ')
         self.exit_price = exit_price
         self.exit_index = pd.to_datetime(exit_index)
         self.profit = self.calculate_profit(exit_price)
@@ -242,6 +244,13 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             # Update active trade if exists
             for trade_name, active_trade in trade_objects.items():
                 if active_trade and not active_trade.is_closed:
+                    # print(f"{trade_name} Entry index: {active_trade.entry_index}\n\t\t\t\t\t\t\t\t\t Current index: {idx}")
+                    # Close trade if trade opened for more than target_candle duration
+                    time_difference = idx - active_trade.entry_index
+                    hours_difference = time_difference / timedelta(hours=1)
+                    if hours_difference > target_candle:
+                        active_trade.close_trade(row.Close, row.name)
+                        print(f"Exceed {target_candle} candles")
                     if active_trade.try_to_close(row):
                         cash += active_trade.profit
                         trade_objects[trade_name] = active_trade
