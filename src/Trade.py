@@ -8,8 +8,8 @@ from src.Stats import Stats
 
 
 class BaseTrade(ABC):
-    def __init__(self, dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
-        self.dollar_size = dollar_size
+    def __init__(self, entry_dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
+        self.entry_dollar_size = entry_dollar_size
         self.entry_price = entry_price
         self.exit_price = None
         self.profit = None
@@ -24,15 +24,15 @@ class BaseTrade(ABC):
         self.update()
 
     @abstractmethod
-    def calculate_take_profit(self):
+    def calculate_take_profit_val(self):
         pass
 
     @abstractmethod
-    def calculate_stop_loss(self):
+    def calculate_stop_loss_val(self):
         pass
 
     @abstractmethod
-    def calculate_profit(self, exit_price):
+    def calculate_profit(self, entry_dollar_size, exit_price):
         pass
 
     @abstractmethod
@@ -44,8 +44,8 @@ class BaseTrade(ABC):
         pass
 
     def update(self, curr_candle=None):
-        self.take_profit_val = self.calculate_take_profit()
-        self.take_stop_loss_val = self.calculate_stop_loss()
+        self.take_profit_val = self.calculate_take_profit_val()
+        self.take_stop_loss_val = self.calculate_stop_loss_val()
 
     def try_to_close(self, curr_candle):
         if self.is_closed:
@@ -66,24 +66,24 @@ class BaseTrade(ABC):
         print(f"Trade Closed at price: {exit_price:.2f}", end=' ')
         self.exit_price = exit_price
         self.exit_index = pd.to_datetime(exit_index)
-        self.profit = self.calculate_profit(exit_price)
+        self.profit = self.calculate_profit(self.entry_dollar_size, exit_price)
         self.is_closed = True
 
 
 class LongTrade(BaseTrade):
-    def __init__(self, dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
-        super().__init__(dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc)
+    def __init__(self, entry_dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
+        super().__init__(entry_dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc)
         self.trade_type = "LONG"
 
-    def calculate_take_profit(self):
+    def calculate_take_profit_val(self):
         return self.entry_price * (1 + self.profit_perc)
 
-    def calculate_stop_loss(self):
+    def calculate_stop_loss_val(self):
         return self.entry_price * (1 - self.stop_loss_perc)
 
-    def calculate_profit(self, exit_price):
-        # This is assuming every trade is 1 share size
-        return exit_price - self.entry_price
+    def calculate_profit(self, entry_dollar_size, exit_price):
+        perc_change = (exit_price - self.entry_price) / self.entry_price
+        return entry_dollar_size * perc_change
 
     def should_close_at_profit(self, high_price, low_price):
         return high_price > self.take_profit_val
@@ -93,18 +93,19 @@ class LongTrade(BaseTrade):
 
 
 class ShortTrade(BaseTrade):
-    def __init__(self, dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
-        super().__init__(dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc)
+    def __init__(self, entry_dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
+        super().__init__(entry_dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc)
         self.trade_type = "SHORT"
 
-    def calculate_take_profit(self):
+    def calculate_take_profit_val(self):
         return self.entry_price * (1 - self.profit_perc)
 
-    def calculate_stop_loss(self):
+    def calculate_stop_loss_val(self):
         return self.entry_price * (1 + self.stop_loss_perc)
 
-    def calculate_profit(self, exit_price):
-        return self.entry_price - exit_price
+    def calculate_profit(self, entry_dollar_size, exit_price):
+        perc_change = (self.entry_price - exit_price) / self.entry_price
+        return entry_dollar_size * perc_change
 
     def should_close_at_profit(self, high_price, low_price):
         return low_price < self.take_profit_val
@@ -249,7 +250,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                     # print(f"{trade_name} Entry index: {active_trade.entry_index}\n\t\t\t\t\t\t\t\t\t Current index: {idx}")
                     # Close trade if trade opened for more than target_candle duration
                     time_difference = idx - active_trade.entry_index
-                    hours_difference = time_difference / timedelta(hours=1)
+                    hours_difference = int(time_difference / timedelta(hours=1))
                     if hours_difference > target_candle:
                         print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
                         active_trade.close_trade(row.Close, row.name)
@@ -268,11 +269,11 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             try:
                 pred = predictions.at[idx, "Predictions"]
                 if (pred is not None and pred != 0):
-                # and (active_trade is None or active_trade.is_closed)
-                # and rows_since_last_trade_closed > gap_between_trades):
+                    # and (active_trade is None or active_trade.is_closed)
+                    # and rows_since_last_trade_closed > gap_between_trades):
                     if pred == 1:  # Long signal
                         trade_name = f"active_long_{idx}"
-                        trade_objects[trade_name] = LongTrade(row.Close, idx, profit_perc, stop_loss_perc)
+                        trade_objects[trade_name] = LongTrade(cash, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
@@ -280,7 +281,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         print(f"  Created LONG  trade at {idx} with entry price {row.Close:.2f}")
                     elif pred == -1:  # Short signal
                         trade_name = f"active_short_{idx}"
-                        trade_objects[trade_name] = ShortTrade(row.Close, idx, profit_perc, stop_loss_perc)
+                        trade_objects[trade_name] = ShortTrade(cash, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingShortTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledShortTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
@@ -296,7 +297,6 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
         # Calculate statistics
         closed_trades = [t for t in trades if t.is_closed]
         winning_trades = [t for t in closed_trades if t.profit > 0]
-
         # total_profit = sum(t.profit for t in closed_trades)
         total_profit = cash - initial_cash
         win_rate = (len(winning_trades) / len(closed_trades) * 100) if closed_trades else 0
