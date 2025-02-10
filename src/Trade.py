@@ -56,6 +56,7 @@ class BaseTrade(ABC):
             print("(Loss)")
             return True
         elif self.should_close_at_profit(curr_candle.High, curr_candle.Low):
+            print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
             self.close_trade(self.take_profit_val, curr_candle.name)
             print("(Profit)")
             return True
@@ -249,6 +250,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                     time_difference = idx - active_trade.entry_index
                     hours_difference = time_difference / timedelta(hours=1)
                     if hours_difference > target_candle:
+                        print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
                         active_trade.close_trade(row.Close, row.name)
                         print(f"Exceed {target_candle} candles")
                     if active_trade.try_to_close(row):
