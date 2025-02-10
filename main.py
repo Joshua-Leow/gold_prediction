@@ -201,8 +201,8 @@ def main():
     predictions_of_best_model = model_predictions[best_model_name]
     trades_of_best_model = model_trades[best_model_name]
 
-    # print("\n7. Plotting Chart...")
-    # plot_finplot(df, predictions_of_best_model, trades_of_best_model)
+    print("\n7. Plotting Chart...")
+    plot_finplot(df, predictions_of_best_model, trades_of_best_model)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
     #       "#########################################################\n")

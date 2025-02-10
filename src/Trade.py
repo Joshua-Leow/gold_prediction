@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import pandas as pd
 
-from config import gap_between_trades, target_candle
+from config import gap_between_trades, target_candle, max_positions
 from src.Stats import Stats
 
 
@@ -256,10 +256,13 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         active_trade.close_trade(row.Close, row.name)
                         print(f"(Exceeded {target_candle} candles)")
                         cash += active_trade.profit
-                        trade_objects[trade_name] = active_trade
+                        # trades.append(active_trade)
+                        # trade_objects.pop(trade_name)
                     elif active_trade.try_to_close(row):
                         cash += active_trade.profit
-                        trade_objects[trade_name] = active_trade
+                        # trades.append(active_trade)
+                        # trade_objects.pop(trade_name)
+
 
             # If there's no active trade or the previous trade is closed
             # if active_trade is None or active_trade.is_closed:
@@ -271,21 +274,21 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                 if (pred is not None and pred != 0):
                     # and (active_trade is None or active_trade.is_closed)
                     # and rows_since_last_trade_closed > gap_between_trades):
-                    if pred == 1:  # Long signal
+                    if pred == 1 and len(trade_objects) <= max_positions:  # Long signal
                         trade_name = f"active_long_{idx}"
-                        trade_objects[trade_name] = LongTrade(cash, row.Close, idx, profit_perc, stop_loss_perc)
+                        trade_objects[trade_name] = LongTrade(cash/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
-                        trades.append(trade_objects.get(trade_name))
+                        trades.append(trade_objects[trade_name])
                         print(f"  Created LONG  trade at {idx} with entry price {row.Close:.2f}")
-                    elif pred == -1:  # Short signal
+                    elif pred == -1 and len(trade_objects) <= max_positions:  # Short signal
                         trade_name = f"active_short_{idx}"
-                        trade_objects[trade_name] = ShortTrade(cash, row.Close, idx, profit_perc, stop_loss_perc)
+                        trade_objects[trade_name] = ShortTrade(cash/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingShortTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledShortTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
-                        trades.append(trade_objects.get(trade_name))
+                        trades.append(trade_objects[trade_name])
                         print(f"  Created SHORT trade at {idx} with entry price {row.Close:.2f}")
             except KeyError as e:
                 print(f"KeyError at index {idx}: {e}")
