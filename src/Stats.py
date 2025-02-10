@@ -6,6 +6,7 @@ class Stats:
     win_rate: float
     num_wins: int
     num_losses: int
+    per_annum_return: float
     perc_return: float
     perc_buy_hold_return: float
     initial_cash: float
@@ -15,7 +16,8 @@ class Stats:
         return f"""
         Number of Trades: {self.num_trades}
         Win Rate: {self.win_rate}%
-        Return [%] : {self.perc_return}%
+        Annual Return [%] : {self.per_annum_return}%
+        Total Return [%] : {self.perc_return}%
         Buy and Hold Return [%]: {self.perc_buy_hold_return}%
         Total Profit: ${self.total_profit}
         Initial Capital: ${self.initial_cash}

@@ -307,6 +307,10 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
         total_profit = cash - initial_cash
         win_rate = (len(winning_trades) / len(closed_trades) * 100) if closed_trades else 0
 
+        total_num_days = int((df.index[-1] - df.index[0]) / timedelta(days=1))
+
+        perc_return = round((total_profit / initial_cash) * 100, 2)
+
         buy_hold_return = ((df.Close.iloc[-1] - df.Close.iloc[0]) / df.Close.iloc[0]) * 100 if len(df) > 0 else 0
 
         stats = Stats(
@@ -314,7 +318,8 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             win_rate=round(win_rate, 2),
             num_wins=len(winning_trades),
             num_losses=len(closed_trades) - len(winning_trades),
-            perc_return=round((total_profit / initial_cash) * 100, 2),
+            per_annum_return=round( perc_return /(total_num_days/365), 2),
+            perc_return=perc_return,
             perc_buy_hold_return=round(buy_hold_return, 2),
             initial_cash=initial_cash,
             total_profit=round(total_profit, 2)
@@ -331,6 +336,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             win_rate=0.0,
             num_wins=0,
             num_losses=0,
+            per_annum_return=0.0,
             perc_return=0.0,
             perc_buy_hold_return=0.0,
             initial_cash=initial_cash,
