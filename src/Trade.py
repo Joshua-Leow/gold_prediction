@@ -8,7 +8,8 @@ from src.Stats import Stats
 
 
 class BaseTrade(ABC):
-    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc):
+    def __init__(self, dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
+        self.dollar_size = dollar_size
         self.entry_price = entry_price
         self.exit_price = None
         self.profit = None
@@ -47,7 +48,6 @@ class BaseTrade(ABC):
         self.take_stop_loss_val = self.calculate_stop_loss()
 
     def try_to_close(self, curr_candle):
-        # print(f"curr_candle high: {curr_candle.High}, low: {curr_candle.Low}")
         if self.is_closed:
             return False
         if self.should_close_at_loss(curr_candle.High, curr_candle.Low):
@@ -71,8 +71,8 @@ class BaseTrade(ABC):
 
 
 class LongTrade(BaseTrade):
-    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc):
-        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc)
+    def __init__(self, dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
+        super().__init__(dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc)
         self.trade_type = "LONG"
 
     def calculate_take_profit(self):
@@ -82,6 +82,7 @@ class LongTrade(BaseTrade):
         return self.entry_price * (1 - self.stop_loss_perc)
 
     def calculate_profit(self, exit_price):
+        # This is assuming every trade is 1 share size
         return exit_price - self.entry_price
 
     def should_close_at_profit(self, high_price, low_price):
@@ -92,8 +93,8 @@ class LongTrade(BaseTrade):
 
 
 class ShortTrade(BaseTrade):
-    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc):
-        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc)
+    def __init__(self, dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc):
+        super().__init__(dollar_size, entry_price, entry_index, profit_perc, stop_loss_perc)
         self.trade_type = "SHORT"
 
     def calculate_take_profit(self):
@@ -112,112 +113,112 @@ class ShortTrade(BaseTrade):
         return high_price > self.take_stop_loss_val
 
 
-class TrailingStopMixin:
-    """Mixin class to add trailing stop loss functionality to trade classes."""
-    def __init__(self, *args, trail_percent=0.01, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.trail_percent = trail_percent
-        self.highest_price = self.entry_price
-        self.lowest_price = self.entry_price
-        self.trailing_stop_price = None
-
-    @abstractmethod
-    def update_trailing_stop(self, current_price):
-        pass
-
-    def update(self, curr_candle=None):
-        super().update(curr_candle)
-        if curr_candle is not None:
-            self.update_trailing_stop(curr_candle.Close)
-
-
-class TrailingLongTrade(TrailingStopMixin, LongTrade):
-    """Long trade with trailing stop loss that moves up as price increases."""
-    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=0.01):
-        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=trail_percent)
-        self.trailing_stop_price = self.entry_price * (1 - self.trail_percent)
-
-    def update_trailing_stop(self, current_price):
-        if current_price > self.highest_price:
-            self.highest_price = current_price
-            self.trailing_stop_price = self.highest_price * (1 - self.trail_percent)
-
-    def should_close_at_loss(self, high_price, low_price):
-        return low_price < self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
-        # return low_price < self.trailing_stop_price
-
-
-class TrailingShortTrade(TrailingStopMixin, ShortTrade):
-    """Short trade with trailing stop loss that moves down as price decreases."""
-    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=0.01):
-        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=trail_percent)
-        self.trailing_stop_price = self.entry_price * (1 + self.trail_percent)
-
-    def update_trailing_stop(self, current_price):
-        if current_price < self.lowest_price:
-            self.lowest_price = current_price
-            self.trailing_stop_price = self.lowest_price * (1 + self.trail_percent)
-
-    def should_close_at_loss(self, high_price, low_price):
-        return high_price > self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
-        # return high_price > self.trailing_stop_price
-
-
-class ScaledTrade(BaseTrade):
-    """Base class for trades that implement position scaling (scaling in/out)."""
-    def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, num_scales=3):
-        super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc)
-        self.num_scales = num_scales
-        self.scale_points = []
-        self.current_scale = 0
-        self.position_size = 1.0 / num_scales
-        self.setup_scale_points()
-
-    @abstractmethod
-    def setup_scale_points(self):
-        pass
-
-    @abstractmethod
-    def check_scale_points(self, current_price):
-        pass
-
-
-class ScaledLongTrade(ScaledTrade, LongTrade):
-    """Long trade that scales into position at predetermined price points."""
-    def setup_scale_points(self):
-        # Example: Scale in at progressively lower prices
-        scale_factor = self.stop_loss_perc / (self.num_scales + 1)
-        self.scale_points = [
-            self.entry_price * (1 - (i + 1) * scale_factor)
-            for i in range(self.num_scales - 1)
-        ]
-
-    def check_scale_points(self, current_price):
-        if self.current_scale < len(self.scale_points):
-            if current_price <= self.scale_points[self.current_scale]:
-                self.current_scale += 1
-                self.position_size += 1.0 / self.num_scales
-                return True
-        return False
-
-
-class ScaledShortTrade(ScaledTrade, ShortTrade):
-    """Short trade that scales into position at predetermined price points."""
-    def setup_scale_points(self):
-        # Example: Scale in at progressively higher prices
-        scale_factor = self.stop_loss_perc / (self.num_scales + 1)
-        self.scale_points = [
-            self.entry_price * (1 + (i + 1) * scale_factor)
-            for i in range(self.num_scales - 1)
-        ]
-
-    def check_scale_points(self, current_price):
-        if self.current_scale < len(self.scale_points):
-            if current_price >= self.scale_points[self.current_scale]:
-                self.current_scale += 1
-                self.position_size += 1.0 / self.num_scales
-                return True
-        return False
+# class TrailingStopMixin:
+#     """Mixin class to add trailing stop loss functionality to trade classes."""
+#     def __init__(self, *args, trail_percent=0.01, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.trail_percent = trail_percent
+#         self.highest_price = self.entry_price
+#         self.lowest_price = self.entry_price
+#         self.trailing_stop_price = None
+#
+#     @abstractmethod
+#     def update_trailing_stop(self, current_price):
+#         pass
+#
+#     def update(self, curr_candle=None):
+#         super().update(curr_candle)
+#         if curr_candle is not None:
+#             self.update_trailing_stop(curr_candle.Close)
+#
+#
+# class TrailingLongTrade(TrailingStopMixin, LongTrade):
+#     """Long trade with trailing stop loss that moves up as price increases."""
+#     def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=0.01):
+#         super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=trail_percent)
+#         self.trailing_stop_price = self.entry_price * (1 - self.trail_percent)
+#
+#     def update_trailing_stop(self, current_price):
+#         if current_price > self.highest_price:
+#             self.highest_price = current_price
+#             self.trailing_stop_price = self.highest_price * (1 - self.trail_percent)
+#
+#     def should_close_at_loss(self, high_price, low_price):
+#         return low_price < self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+#         # return low_price < self.trailing_stop_price
+#
+#
+# class TrailingShortTrade(TrailingStopMixin, ShortTrade):
+#     """Short trade with trailing stop loss that moves down as price decreases."""
+#     def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=0.01):
+#         super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc, trail_percent=trail_percent)
+#         self.trailing_stop_price = self.entry_price * (1 + self.trail_percent)
+#
+#     def update_trailing_stop(self, current_price):
+#         if current_price < self.lowest_price:
+#             self.lowest_price = current_price
+#             self.trailing_stop_price = self.lowest_price * (1 + self.trail_percent)
+#
+#     def should_close_at_loss(self, high_price, low_price):
+#         return high_price > self.trailing_stop_price or super().should_close_at_loss(high_price, low_price)
+#         # return high_price > self.trailing_stop_price
+#
+#
+# class ScaledTrade(BaseTrade):
+#     """Base class for trades that implement position scaling (scaling in/out)."""
+#     def __init__(self, entry_price, entry_index, profit_perc, stop_loss_perc, num_scales=3):
+#         super().__init__(entry_price, entry_index, profit_perc, stop_loss_perc)
+#         self.num_scales = num_scales
+#         self.scale_points = []
+#         self.current_scale = 0
+#         self.position_size = 1.0 / num_scales
+#         self.setup_scale_points()
+#
+#     @abstractmethod
+#     def setup_scale_points(self):
+#         pass
+#
+#     @abstractmethod
+#     def check_scale_points(self, current_price):
+#         pass
+#
+#
+# class ScaledLongTrade(ScaledTrade, LongTrade):
+#     """Long trade that scales into position at predetermined price points."""
+#     def setup_scale_points(self):
+#         # Example: Scale in at progressively lower prices
+#         scale_factor = self.stop_loss_perc / (self.num_scales + 1)
+#         self.scale_points = [
+#             self.entry_price * (1 - (i + 1) * scale_factor)
+#             for i in range(self.num_scales - 1)
+#         ]
+#
+#     def check_scale_points(self, current_price):
+#         if self.current_scale < len(self.scale_points):
+#             if current_price <= self.scale_points[self.current_scale]:
+#                 self.current_scale += 1
+#                 self.position_size += 1.0 / self.num_scales
+#                 return True
+#         return False
+#
+#
+# class ScaledShortTrade(ScaledTrade, ShortTrade):
+#     """Short trade that scales into position at predetermined price points."""
+#     def setup_scale_points(self):
+#         # Example: Scale in at progressively higher prices
+#         scale_factor = self.stop_loss_perc / (self.num_scales + 1)
+#         self.scale_points = [
+#             self.entry_price * (1 + (i + 1) * scale_factor)
+#             for i in range(self.num_scales - 1)
+#         ]
+#
+#     def check_scale_points(self, current_price):
+#         if self.current_scale < len(self.scale_points):
+#             if current_price >= self.scale_points[self.current_scale]:
+#                 self.current_scale += 1
+#                 self.position_size += 1.0 / self.num_scales
+#                 return True
+#         return False
 
 
 def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_loss_perc=0.01):
@@ -296,7 +297,8 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
         closed_trades = [t for t in trades if t.is_closed]
         winning_trades = [t for t in closed_trades if t.profit > 0]
 
-        total_profit = sum(t.profit for t in closed_trades)
+        # total_profit = sum(t.profit for t in closed_trades)
+        total_profit = cash - initial_cash
         win_rate = (len(winning_trades) / len(closed_trades) * 100) if closed_trades else 0
 
         buy_hold_return = ((df.Close.iloc[-1] - df.Close.iloc[0]) / df.Close.iloc[0]) * 100 if len(df) > 0 else 0

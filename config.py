@@ -10,6 +10,7 @@ profit_perc = 4.00                       # Take profit percentage
 stop_loss_perc = profit_perc/4           # Stop loss percentage
 gap_between_trades = 0                   # Number of candles to wait before making the next trade
 feature_horizons = [2, 8, 32, 128, 512]  # Feature Horizons to be trained with
+max_positions = 10
 
 
 def define_target_labels(df):
