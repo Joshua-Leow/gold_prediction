@@ -5,7 +5,6 @@ symbol = 'GC=F'                          # Trading symbol
 interval = '1h'                          # Time interval
 confidence = 0.5                        # Prediction confidence threshold
 target_candle = 240                      # Future candle to predict
-# TODO: Close the trade if trade has been open for more than target_candle duration
 # TODO: Fix inaccurate returns. Entire capital cannot be used every trade.
 profit_perc = 4.00                       # Take profit percentage
 stop_loss_perc = profit_perc/4           # Stop loss percentage
