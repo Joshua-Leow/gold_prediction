@@ -274,7 +274,8 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                 if (pred is not None and pred != 0):
                     # and (active_trade is None or active_trade.is_closed)
                     # and rows_since_last_trade_closed > gap_between_trades):
-                    if pred == 1 and len(trade_objects) <= max_positions:  # Long signal
+                    if (pred == 1  # Long signal
+                        and sum(not trade.is_closed for trade in trade_objects.values()) < max_positions):  #open trades < max_positions
                         trade_name = f"active_long_{idx}"
                         trade_objects[trade_name] = LongTrade(cash/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
@@ -282,7 +283,8 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         rows_since_last_trade_opened = 0
                         trades.append(trade_objects[trade_name])
                         print(f"  Created LONG  trade at {idx} with entry price {row.Close:.2f}")
-                    elif pred == -1 and len(trade_objects) <= max_positions:  # Short signal
+                    elif (pred == -1 # Short signal
+                        and sum(not trade.is_closed for trade in trade_objects.values()) < max_positions):  #open trades < max_positions
                         trade_name = f"active_short_{idx}"
                         trade_objects[trade_name] = ShortTrade(cash/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingShortTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
