@@ -1,9 +1,8 @@
 import numpy as np
 
 symbol = 'GC=F'                          # Trading symbol
-# symbol = 'TSLA'                 # Trading symbol
 interval = '1h'                          # Time interval
-confidence = 0.5                        # Prediction confidence threshold
+confidence = 0.5                         # Prediction confidence threshold
 target_candle = 240                      # Future candle to predict
 profit_perc = 4.00                       # Take profit percentage
 stop_loss_perc = profit_perc/4           # Stop loss percentage

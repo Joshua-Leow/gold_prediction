@@ -249,9 +249,10 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                 if active_trade and not active_trade.is_closed:
                     # print(f"{trade_name} Entry index: {active_trade.entry_index}\n\t\t\t\t\t\t\t\t\t Current index: {idx}")
                     # Close trade if trade opened for more than target_candle duration
-                    time_difference = idx - active_trade.entry_index
-                    hours_difference = int(time_difference / timedelta(hours=1))
-                    if hours_difference > target_candle:
+                    current_row = df.index.get_loc(idx)
+                    entry_row = df.index.get_loc(active_trade.entry_index)
+                    row_difference = abs(current_row - entry_row)
+                    if row_difference > target_candle:
                         print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
                         active_trade.close_trade(row.Close, row.name)
                         print(f"(Exceeded {target_candle} candles)")
