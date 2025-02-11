@@ -46,6 +46,6 @@ def preprocess_data(df):
 
 
 def final_processing(df):
-    df = df[:-target_candle]
+    # df = df[:-target_candle]
     # print(df[df["Target"]==1])
     return df

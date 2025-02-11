@@ -255,7 +255,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                     if row_difference > target_candle*2:
                         print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
                         active_trade.close_trade(row.Close, row.name)
-                        print(f"(Exceeded {target_candle} candles)")
+                        print(f"(Exceeded {target_candle*2} candles)")
                         cash += active_trade.profit
                         # trades.append(active_trade)
                         # trade_objects.pop(trade_name)

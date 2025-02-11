@@ -131,3 +131,32 @@ def get_close_ratio_and_trend(df, horizons=None):
         new_predictors.append(trend_column)
 
     return new_predictors, df
+
+
+def sort_features(predictors):
+    # Hard-coded for now
+    return [
+        'Close_Ratio_128',  # 0.2700
+        'Close_Ratio_512',  # 0.2593
+        'macd',  # 0.0744
+        'Close_Trend_128',  # 0.0482
+        'garman_klass_vol',  # 0.0410
+        'bb_low',  # 0.0397
+        'bb_high',  # 0.0389
+        'bb_mid',  # 0.0387
+        'Close_Trend_512',  # 0.0303
+        'Close_Trend_32',  # 0.0273
+        'Close_Ratio_32',  # 0.0157
+        'Close_Trend_8',  # 0.0142
+        'Close_Ratio_8',  # 0.0114
+        'Close_Trend_2',  # 0.0123
+        'atr',  # 0.0079
+        'Close_Ratio_2',  # 0.0029
+        'MACD_Diff_Ratio_512',  # 0.0072
+        'MACD_Diff_Ratio_128',  # 0.0048
+        'MACD_Diff_Ratio_32',  # 0.0027
+        'MACD_Diff_Ratio_8',  # 0.0021
+        'MACD_Diff_Ratio_2',  # 0.0001
+        'macd_diff',  # 0.0141
+        'macd_cross'  # 0.0001
+    ]

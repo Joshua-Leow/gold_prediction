@@ -2,7 +2,7 @@ from src.compare_models import compare_models_performance, get_models, evaluate_
 from src.ModelMetrics import compute_model_metrics
 from config import symbol, interval
 from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, get_atr, \
-    get_bollinger_bands, get_garman_klass_vol
+    get_bollinger_bands, get_garman_klass_vol, sort_features
 from src.plot_chart import plot_finplot
 from src.processing import fetch_data, preprocess_data, final_processing
 
@@ -176,7 +176,8 @@ def main():
     print("  3.5 Adding Garman Klass Volume features...")
     garman_klass_predictors, df = get_garman_klass_vol(df)
     predictors += garman_klass_predictors
-    print("Features used:", predictors)
+    sorted_predictors = sort_features(predictors)
+    print("Features used:", sorted_predictors)
 
     print("\n4. Final Processing of data...")
     df = final_processing(df)
