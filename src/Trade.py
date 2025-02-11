@@ -51,19 +51,19 @@ class BaseTrade(ABC):
         if self.is_closed:
             return False
         if self.should_close_at_loss(curr_candle.High, curr_candle.Low):
-            print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
+            print("\t\t", end=' ')
             self.close_trade(self.take_stop_loss_val, curr_candle.name)
             print("(Loss)")
             return True
         elif self.should_close_at_profit(curr_candle.High, curr_candle.Low):
-            print("\t\t\t\t\t\t\t\t\t\t\t", end=' ')
+            print("\t\t", end=' ')
             self.close_trade(self.take_profit_val, curr_candle.name)
             print("(Profit)")
             return True
         return False
 
     def close_trade(self, exit_price, exit_index):
-        print(f"Trade Closed at price: {exit_price:.2f}", end=' ')
+        print(f"Trade Closed at {exit_index},  Closing price: {exit_price:.2f}", end=' ')
         self.exit_price = exit_price
         self.exit_index = pd.to_datetime(exit_index)
         self.profit = self.calculate_profit(self.entry_dollar_size, exit_price)
@@ -283,7 +283,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
                         trades.append(trade_objects[trade_name])
-                        print(f"  Created LONG  trade at {idx} with entry price {row.Close:.2f}")
+                        print(f"  Created LONG  trade at {idx},    Entry price: {row.Close:.2f}")
                     elif (pred == -1 # Short signal
                         and sum(not trade.is_closed for trade in trade_objects.values()) < max_positions):  #open trades < max_positions
                         trade_name = f"active_short_{idx}"
@@ -292,7 +292,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         # active_trade = ScaledShortTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
                         trades.append(trade_objects[trade_name])
-                        print(f"  Created SHORT trade at {idx} with entry price {row.Close:.2f}")
+                        print(f"  Created SHORT trade at {idx},    Entry price: {row.Close:.2f}")
             except KeyError as e:
                 print(f"KeyError at index {idx}: {e}")
                 continue
