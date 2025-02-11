@@ -4,7 +4,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 import pandas as pd
 from xgboost import XGBClassifier
 
-from config import confidence, target_candle, define_target_labels
+from config import confidence, target_candle, define_target_labels, long_bias
 
 
 def get_models():
@@ -65,7 +65,7 @@ def predict_with_confidence(model, features, confidence_threshold=0.7):
 
     predictions = np.full(len(proba), 0)  # Initialize with 0
     if long_proba  is not None: predictions[long_proba  >= confidence_threshold] = 1  # Confident long trade
-    if short_proba is not None: predictions[short_proba >= confidence_threshold*1.6] = -1  # Confident short trade
+    if short_proba is not None: predictions[short_proba >= confidence_threshold*long_bias] = -1  # Confident short trade
 
     # Count occurrences of each value
     count_minus_1 = np.count_nonzero(predictions == -1)
