@@ -10,3 +10,6 @@ yfinance
 xgboost
 lightgbm
 pandas_ta
+flask
+flask-cors
+flask-socketio
