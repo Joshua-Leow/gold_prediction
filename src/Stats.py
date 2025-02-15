@@ -11,6 +11,7 @@ class Stats:
     perc_buy_hold_return: float
     initial_cash: float
     total_profit: float
+    max_drawdown: float
 
     def __repr__(self) -> str:
         return f"""
@@ -23,4 +24,5 @@ class Stats:
         Initial Capital: ${self.initial_cash}
         Winning Trades: {self.num_wins}
         Losing Trades: {self.num_losses}
+        Maximum Draw-down: {self.max_drawdown}%
         """

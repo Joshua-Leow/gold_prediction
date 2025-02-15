@@ -227,6 +227,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
     # active_trade = None
     trade_objects = {}
     cash = initial_cash
+    account_values = [initial_cash]  # Track account values for drawdown calculation
     rows_since_last_trade_closed = float('inf')  # Start with a high value
 
     try:
@@ -300,6 +301,15 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                 print(f"Unexpected error at index {idx}: {e}")
                 continue
 
+            # Track the account value after each row
+            account_values.append(cash)
+
+        # Calculate max drawdown
+        account_values_series = pd.Series(account_values)
+        rolling_max = account_values_series.cummax()
+        drawdowns = (account_values_series - rolling_max) / rolling_max
+        max_drawdown = drawdowns.min() * -100  # Convert to percentage
+
         # Calculate statistics
         closed_trades = [t for t in trades if t.is_closed]
         winning_trades = [t for t in closed_trades if t.profit > 0]
@@ -322,7 +332,8 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             perc_return=perc_return,
             perc_buy_hold_return=round(buy_hold_return, 2),
             initial_cash=initial_cash,
-            total_profit=round(total_profit, 2)
+            total_profit=round(total_profit, 2),
+            max_drawdown=round(max_drawdown, 2)
         )
 
         print(f"      Trading Simulation completed with {len(trades)} trades")
@@ -340,6 +351,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             perc_return=0.0,
             perc_buy_hold_return=0.0,
             initial_cash=initial_cash,
-            total_profit=0.0
+            total_profit=0.0,
+            max_drawdown=0.0
         )
         return [], default_stats
