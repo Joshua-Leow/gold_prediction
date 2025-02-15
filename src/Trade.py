@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import pandas as pd
 
-from config import gap_between_trades, target_candle, max_positions
+from config import gap_between_trades, target_candle, max_positions, leverage
 from src.Stats import Stats
 
 
@@ -279,7 +279,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                     if (pred == 1  # Long signal
                         and sum(not trade.is_closed for trade in trade_objects.values()) < max_positions):  #open trades < max_positions
                         trade_name = f"active_long_{idx}"
-                        trade_objects[trade_name] = LongTrade(cash/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
+                        trade_objects[trade_name] = LongTrade(cash*leverage/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingLongTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
@@ -288,7 +288,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                     elif (pred == -1 # Short signal
                         and sum(not trade.is_closed for trade in trade_objects.values()) < max_positions):  #open trades < max_positions
                         trade_name = f"active_short_{idx}"
-                        trade_objects[trade_name] = ShortTrade(cash/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
+                        trade_objects[trade_name] = ShortTrade(cash*leverage/max_positions, row.Close, idx, profit_perc, stop_loss_perc)
                         # active_trade = TrailingShortTrade(row.Close, idx, profit_perc, stop_loss_perc, trail_percent=stop_loss_perc/100)
                         # active_trade = ScaledShortTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
