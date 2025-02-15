@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import subprocess
 import sys
@@ -13,18 +13,61 @@ CORS(app, resources={
     }
 })
 
+def update_config_file(config_data):
+    """Update config.py with new values"""
+    config_template = f'''
+import numpy as np
+
+symbol = '{config_data["symbol"]}'                      # Trading symbol to be downloaded with yfinance
+interval = '{config_data["interval"]}'                          # Time interval
+confidence = {config_data["confidence"]}                         # Prediction confidence threshold
+target_candle = {config_data["targetCandle"]}                       # Future candle to predict
+profit_perc = {config_data["profitPerc"]}                       # Take profit percentage
+stop_loss_perc = {config_data["stopLossPerc"]}                    # Stop loss percentage
+gap_between_trades = {config_data["gapBetweenTrades"]}                   # Number of candles to wait before making the next trade
+feature_horizons = {config_data["featureHorizons"]}  # Feature Horizons to be trained with
+max_positions = {config_data["maxPositions"]}                       # Max number of open positions at a time
+long_bias = {config_data["longBias"]}                          # Long bias (1.0 representing no bias)
+leverage = {config_data["leverage"]}                           # leverage multiplier
+
+def define_target_labels(df):
+    """
+    Defines target labels for a given DataFrame.
+
+    Args:
+        df: DataFrame containing financial data with columns: ["Future_High", "Future_Low", "Close"]
+        profit_perc: Profit percentage.
+        stop_loss_perc: Stop-loss percentage.
+
+    Returns: A Series of target labels (-1, 0, or 1).
+    """
+    long_condition = (df["Future_High"] > df["Close"] + (df["Close"] * profit_perc / 100)) & \
+                     (df["Future_Low"] > df["Close"] - (df["Close"] * stop_loss_perc / 100))
+
+    short_condition = (df["Future_Low"] < df["Close"] - (df["Close"] * profit_perc / 100)) & \
+                      (df["Future_High"] < df["Close"] + (df["Close"] * stop_loss_perc / 100))
+
+    return np.where(long_condition, 1,
+            np.where(short_condition, -1, 0))
+'''
+    # Write the new configuration to config.py
+    with open('config.py', 'w') as f:
+        f.write(config_template.strip())
 
 @app.route('/')
 def index():
     return "WebSocket Server Running"
 
 
-@app.route('/run_backtest', methods=['GET'])
+@app.route('/run_backtest', methods=['POST'])
 def run_backtest():
     try:
         print("run_backtest function executed")
         global last_position
         last_position = 0
+
+        config_data = request.json
+        print("Received config:", config_data)
 
         # Get the directory of main.py
         script_dir = os.path.dirname(os.path.abspath("main.py"))
@@ -39,6 +82,10 @@ def run_backtest():
             env={**os.environ,  # Include current environment variables
                  'PYTHONPATH': script_dir + os.pathsep + os.environ.get('PYTHONPATH', '')}
         )
+
+        # Clear the log file when starting the server
+        with open('prints.log', 'w') as f:
+            f.write('')
 
         # Read output while the process is running
         while True:
@@ -57,12 +104,13 @@ def run_backtest():
         return_code = process.wait()
 
         if return_code == 0:
-            return jsonify({"message": "Backtest completed successfully!"})
+            return jsonify({"message": "Backtest completed successfully!",
+                            "config": config_data})
         else:
             # Capture any error output
             error_output = process.stderr.read()
-            return jsonify({"error": f"Process failed with return code {return_code}. Error: {error_output}"})
-
+            return jsonify({"error": f"Process failed with return code {return_code}. Error: {error_output}",
+                            "config": config_data})
     except Exception as e:
         print(f"Failed at run_backtest with error:\n{e}")
         return jsonify({"error": str(e)})
@@ -95,7 +143,4 @@ def get_logs():
 
 
 if __name__ == "__main__":
-    # Clear the log file when starting the server
-    with open('prints.log', 'w') as f:
-        f.write('')
     app.run(port=5000, debug=True)

@@ -1,11 +1,11 @@
 import numpy as np
 
-symbol = 'EURUSD=X'                          # Trading symbol
+symbol = 'EURUSD=X'                      # Trading symbol to be downloaded with yfinance
 interval = '5m'                          # Time interval
 confidence = 0.6                         # Prediction confidence threshold
-target_candle = 12                      # Future candle to predict
+target_candle = 12                       # Future candle to predict
 profit_perc = 0.10                       # Take profit percentage
-stop_loss_perc = profit_perc/4           # Stop loss percentage
+stop_loss_perc = 0.05                    # Stop loss percentage
 gap_between_trades = 0                   # Number of candles to wait before making the next trade
 feature_horizons = [2, 8, 32, 128, 512]  # Feature Horizons to be trained with
 max_positions = 15                       # Max number of open positions at a time
