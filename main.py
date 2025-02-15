@@ -155,7 +155,7 @@ def evaluate_models(data, predictors, start=4800, step=240):
 def main():
     import logging
     logging.basicConfig(
-        filename="logs.log",  # Write logs to this file
+        filename="prints.log",  # Write logs to this file
         filemode="w",  # Overwrite the file every time the script runs
         level=logging.INFO,  # Set log level
         format="%(asctime)s - %(message)s"  # Log format with timestamps
@@ -194,8 +194,8 @@ def main():
     garman_klass_predictors, df = get_garman_klass_vol(df)
     predictors += garman_klass_predictors
     sorted_predictors = sort_features(predictors)
-    print("Features used:", sorted_predictors)
-    # logger.info("Features used:", sorted_predictors)
+    print(f"Features used: {sorted_predictors}")
+    logger.info(f"Features used: {sorted_predictors}")
 
     print("\n4. Final Processing of data...")
     logger.info("\n4. Final Processing of data...")
@@ -230,7 +230,7 @@ def main():
     trades_of_best_model = model_trades[best_model_name]
 
     print("\n7. Plotting Chart...")
-    plot_finplot(df, predictions_of_best_model, trades_of_best_model)
+    # plot_finplot(df, predictions_of_best_model, trades_of_best_model)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
     #       "#########################################################\n")
