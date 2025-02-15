@@ -195,7 +195,7 @@ def main():
     predictors += garman_klass_predictors
     sorted_predictors = sort_features(predictors)
     print("Features used:", sorted_predictors)
-    logger.info("Features used:", sorted_predictors)
+    # logger.info("Features used:", sorted_predictors)
 
     print("\n4. Final Processing of data...")
     logger.info("\n4. Final Processing of data...")
@@ -229,8 +229,8 @@ def main():
     predictions_of_best_model = model_predictions[best_model_name]
     trades_of_best_model = model_trades[best_model_name]
 
-    # print("\n7. Plotting Chart...")
-    # plot_finplot(df, predictions_of_best_model, trades_of_best_model)
+    print("\n7. Plotting Chart...")
+    plot_finplot(df, predictions_of_best_model, trades_of_best_model)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
     #       "#########################################################\n")

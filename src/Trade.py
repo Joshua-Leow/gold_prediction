@@ -63,7 +63,7 @@ class BaseTrade(ABC):
         return False
 
     def close_trade(self, exit_price, exit_index):
-        print(f"Trade Closed at {exit_index},  Closing price: {exit_price:.2f}", end=' ')
+        print(f"Trade Closed at {exit_index},  Closing price: {exit_price:.4f}", end=' ')
         self.exit_price = exit_price
         self.exit_index = pd.to_datetime(exit_index)
         self.profit = self.calculate_profit(self.entry_dollar_size, exit_price)
@@ -284,7 +284,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         # active_trade = ScaledLongTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
                         trades.append(trade_objects[trade_name])
-                        print(f"  Created LONG  trade at {idx},    Entry price: {row.Close:.2f}")
+                        print(f"  Created LONG  trade at {idx},    Entry price: {row.Close:.4f}")
                     elif (pred == -1 # Short signal
                         and sum(not trade.is_closed for trade in trade_objects.values()) < max_positions):  #open trades < max_positions
                         trade_name = f"active_short_{idx}"
@@ -293,7 +293,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
                         # active_trade = ScaledShortTrade(row.Close, idx, profit_perc, stop_loss_perc, num_scales=3)
                         rows_since_last_trade_opened = 0
                         trades.append(trade_objects[trade_name])
-                        print(f"  Created SHORT trade at {idx},    Entry price: {row.Close:.2f}")
+                        print(f"  Created SHORT trade at {idx},    Entry price: {row.Close:.4f}")
             except KeyError as e:
                 print(f"KeyError at index {idx}: {e}")
                 continue
@@ -336,7 +336,7 @@ def simulate_trades(df, predictions, initial_cash=10000, profit_perc=0.02, stop_
             max_drawdown=round(max_drawdown, 2)
         )
 
-        print(f"      Trading Simulation completed with {len(trades)} trades")
+        print(f"\n\tTrading Simulation completed... Total number of trades: {len(trades)}")
         return trades, stats
 
     except Exception as e:
