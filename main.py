@@ -153,83 +153,56 @@ def evaluate_models(data, predictors, start=4800, step=240):
 
 
 def main():
-    import logging
-    logging.basicConfig(
-        filename="prints.log",  # Write logs to this file
-        filemode="w",  # Overwrite the file every time the script runs
-        level=logging.INFO,  # Set log level
-        format="%(asctime)s - %(message)s"  # Log format with timestamps
-    )
-    logger = logging.getLogger(__name__)
-
     print("1. Fetching data...")
-    logger.info("1. Fetching data...")
     df = fetch_data(symbol, interval)
 
     print("\n2. Pre-processing data...")
-    logger.info("2. Pre-processing data...")
     df = preprocess_data(df)
 
     print("\n3. Feature Engineering...")
-    logger.info("3. Feature Engineering...")
     predictors = []
     print("  3.1 Adding MACD and price features...")
-    logger.info("  3.1 Adding MACD and price features...")
     macd_predictors, df = get_macd_features(df)
     predictors += macd_predictors
     print("  3.2 Adding price ratios and trends...")
-    logger.info("  3.2 Adding price ratios and trends...")
     price_predictors, df = get_close_ratio_and_trend(df)
     predictors += price_predictors
     print("  3.3 Adding ATR volatility features...")
-    logger.info("  3.3 Adding ATR volatility features...")
     atr_predictors, df = get_atr(df)
     predictors += atr_predictors
     print("  3.4 Adding Bollinger Bands features...")
-    logger.info("  3.4 Adding Bollinger Bands features...")
     bb_predictors, df = get_bollinger_bands(df)
     predictors += bb_predictors
     print("  3.5 Adding Garman Klass Volume features...")
-    logger.info("  3.5 Adding Garman Klass Volume features...")
     garman_klass_predictors, df = get_garman_klass_vol(df)
     predictors += garman_klass_predictors
     sorted_predictors = sort_features(predictors)
     print(f"Features used: {sorted_predictors}")
-    logger.info(f"Features used: {sorted_predictors}")
 
     print("\n4. Final Processing of data...")
-    logger.info("\n4. Final Processing of data...")
     df = final_processing(df)
 
     print("\n5. Evaluating multiple models...")
-    logger.info("\n5. Evaluating multiple models...")
     model_predictions, model_trades, model_metrics = evaluate_models(df, predictors)
 
     print("\n6. Comparing model performances...")
-    logger.info("\n6. Comparing model performances...")
     trading_comparison, ml_metrics_comparison = compare_models_performance(model_metrics)
 
     print("\n\t6.1 Trading Performance Comparison:")
-    logger.info("\n\t6.1 Trading Performance Comparison:")
     print(trading_comparison)
-    logger.info(trading_comparison)
     print("\n\t6.2 ML Metrics Comparison:")
-    logger.info("\n\t6.2 ML Metrics Comparison:")
     print(ml_metrics_comparison)
-    logger.info(ml_metrics_comparison)
 
     # Find best model based on return
     best_model_name, best_model_metrics = max(model_metrics.items(), key=lambda x: x[1].trading_stats.perc_return)
     print(f"\n\t6.3 Best performing model (by return): {best_model_name}")
-    logger.info(f"\n\t6.3 Best performing model (by return): {best_model_name}")
     print(best_model_metrics)
-    logger.info(best_model_metrics)
 
     # Get predictions and trades of the best model
     predictions_of_best_model = model_predictions[best_model_name]
     trades_of_best_model = model_trades[best_model_name]
 
-    print("\n7. Plotting Chart...")
+    # print("\n7. Plotting Chart...")
     # plot_finplot(df, predictions_of_best_model, trades_of_best_model)
     # print("############### COMMAND TO KILL PROCESS: ################\n"
     #       "ps | grep gold_prediction | awk '{print $1}' | xargs kill\n"
