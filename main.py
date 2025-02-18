@@ -3,7 +3,7 @@ from backtesting import Backtest
 from src.Strategy import SmaCross, MLStrategy
 from src.compare_models import compare_models_performance, get_models, evaluate_model
 from src.ModelMetrics import compute_model_metrics
-from config import symbol, interval
+from config import symbol, interval, target_candle, profit_perc, stop_loss_perc, max_positions
 from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, get_atr, \
     get_bollinger_bands, get_garman_klass_vol, sort_features
 from src.plot_chart import plot_finplot
@@ -152,10 +152,8 @@ def evaluate_models(data, predictors, start=2400, step=240):
             df_prices = data.join(filtered_predictions['Predictions'])
             # print(df_prices)
             bt = Backtest(df_prices, MLStrategy, cash=1_000_000, commission=.002)
-            stats = bt.run(target_candle=240,
-                                    profit_perc=4.00,
-                                    stop_loss_perc=1.00,
-                                    max_positions=10)
+            stats = bt.run(target_candle=target_candle, profit_perc=profit_perc,
+                            stop_loss_perc=stop_loss_perc, max_positions=max_positions)
             print(stats)
 
             bt.plot()
@@ -205,22 +203,22 @@ def main():
 
 
 
-    print("\n6. Comparing model performances...")
-    trading_comparison, ml_metrics_comparison = compare_models_performance(model_metrics)
-
-    print("\n\t6.1 Trading Performance Comparison:")
-    print(trading_comparison)
-    print("\n\t6.2 ML Metrics Comparison:")
-    print(ml_metrics_comparison)
-
-    # Find best model based on return
-    best_model_name, best_model_metrics = max(model_metrics.items(), key=lambda x: x[1].trading_stats.perc_return)
-    print(f"\n\t6.3 Best performing model (by return): {best_model_name}")
-    print(best_model_metrics)
-
-    # Get predictions and trades of the best model
-    predictions_of_best_model = model_predictions[best_model_name]
-    trades_of_best_model = model_trades[best_model_name]
+    # print("\n6. Comparing model performances...")
+    # trading_comparison, ml_metrics_comparison = compare_models_performance(model_metrics)
+    #
+    # print("\n\t6.1 Trading Performance Comparison:")
+    # print(trading_comparison)
+    # print("\n\t6.2 ML Metrics Comparison:")
+    # print(ml_metrics_comparison)
+    #
+    # # Find best model based on return
+    # best_model_name, best_model_metrics = max(model_metrics.items(), key=lambda x: x[1].trading_stats.perc_return)
+    # print(f"\n\t6.3 Best performing model (by return): {best_model_name}")
+    # print(best_model_metrics)
+    #
+    # # Get predictions and trades of the best model
+    # predictions_of_best_model = model_predictions[best_model_name]
+    # trades_of_best_model = model_trades[best_model_name]
 
     # print("\n7. Plotting Chart...")
     # plot_finplot(df, predictions_of_best_model, trades_of_best_model)

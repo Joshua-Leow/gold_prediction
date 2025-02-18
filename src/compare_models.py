@@ -11,9 +11,9 @@ from config import confidence, target_candle, define_target_labels, long_bias
 def get_models():
     models = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=2,
+            n_estimators=10,
             min_samples_split=50,
-            max_depth=50,
+            max_depth=10,
             random_state=1                     )
         # ,"XGBoost": XGBClassifier(
         #     n_estimators=300,
