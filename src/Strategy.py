@@ -36,6 +36,12 @@ class SmaCross(Strategy):
             self.sell()
 
 
+from backtesting import Strategy
+from backtesting.lib import crossover
+import pandas as pd
+import numpy as np
+
+
 class MLStrategy(Strategy):
     # Strategy parameters
     target_candle = 240
@@ -51,80 +57,55 @@ class MLStrategy(Strategy):
         # Store predictions as a custom indicator
         self.predictions = self.I(lambda: self.data.df['Predictions'])
 
-        # Track position entry data using trade index
-        self.trade_data = {}  # {trade_id: {'entry_price': price, 'entry_bar': bar}}
-
     def next(self):
         """Define trading logic for each step"""
-        # First, check if any existing positions need to be closed
         current_bar = len(self.data) - 1
 
+        # Check existing trades for closing conditions
         for trade in list(self.trades):
-            trade_id = id(trade)
+            current_price = self.data.Close[-1]
+            price_change_perc = ((current_price - trade.entry_price) / trade.entry_price) * 100
 
-            if trade_id in self.trade_data:
-                entry_data = self.trade_data[trade_id]
-                entry_price = entry_data['entry_price']
-                entry_bar = entry_data['entry_bar']
-                current_price = self.data.Close[-1]
+            # Determine if we should close the position
+            should_close = False
 
-                # Calculate price changes as percentages
-                price_change_perc = ((current_price - entry_price) / entry_price) * 100
-                print(f"Trade: {trade_id}: entry_price: {entry_price}, entry_date: {entry_bar}, current perc: {price_change_perc}")
+            # Check take profit
+            if (trade.is_long and price_change_perc >= self.profit_perc) or \
+                    (not trade.is_long and -price_change_perc >= self.profit_perc):
+                should_close = True
+                print(f"Trade hit take profit: {price_change_perc:.2f}%")
 
-                # Determine if we should close the position
-                should_close = False
+            # Check stop loss
+            elif (trade.is_long and price_change_perc <= -self.stop_loss_perc) or \
+                    (not trade.is_long and -price_change_perc <= -self.stop_loss_perc):
+                should_close = True
+                print(f"Trade hit stop loss: {price_change_perc:.2f}%")
 
-                # Check take profit
-                if (trade.is_long and price_change_perc >= self.profit_perc) or \
-                        (not trade.is_long and -price_change_perc >= self.profit_perc):
-                    print("Trying to close with profit")
-                    should_close = True
-                # Check stop loss
-                elif (trade.is_long and price_change_perc <= -self.stop_loss_perc) or \
-                        (not trade.is_long and -price_change_perc <= -self.stop_loss_perc):
-                    print("Trying to close with loss")
-                    should_close = True
-                # Check if position has been open for too long
-                elif (current_bar - entry_bar) >= self.target_candle:
-                    print("Trying to close. exceeded duration")
-                    should_close = True
+            # Check if position has been open for too long
+            elif (current_bar - trade.entry_bar) >= self.target_candle:
+                should_close = True
+                print(f"Trade hit time limit: {current_bar - trade.entry_bar} bars")
 
-                if should_close:
-                    trade.close()
-                    del self.trade_data[trade_id]
+            if should_close:
+                trade.close()
 
         # Check if we can open new positions
-        current_positions = len(self.trades)
-        if current_positions > self.max_positions:
-            print("Too many opened positions")
+        if len(self.trades) >= self.max_positions:
             return
 
         # Calculate position size (fixed fractional position sizing)
         position_value = self.equity / self.max_positions
         position_size = position_value / self.data.Close[-1]
-
-        # Round down to ensure we don't exceed available cash
-        position_size = int(position_size)
+        position_size = int(position_size)  # Round down to whole units
 
         if position_size < 1:
-            print("Position size too small")
             return  # Skip if position size is too small
 
         # Open new position based on prediction
-        if self.predictions[-1] == 1 and current_positions < self.max_positions:
-            print("Trying to open long trade")
-            trade = self.buy(size=position_size)
-            # Store entry data using trade object's id
-            self.trade_data[id(trade)] = {
-                'entry_price': self.data.Close[-1],
-                'entry_bar': current_bar
-            }
-        elif self.predictions[-1] == -1 and current_positions < self.max_positions:
-            print("Trying to open short trade")
-            trade = self.sell(size=position_size)
-            # Store entry data using trade object's id
-            self.trade_data[id(trade)] = {
-                'entry_price': self.data.Close[-1],
-                'entry_bar': current_bar
-            }
+        if self.predictions[-1] == 1 and len(self.trades) < self.max_positions:
+            print(f"Opening long trade at {self.data.Close[-1]}")
+            self.buy(size=position_size)
+
+        elif self.predictions[-1] == -1 and len(self.trades) < self.max_positions:
+            print(f"Opening short trade at {self.data.Close[-1]}")
+            self.sell(size=position_size)
