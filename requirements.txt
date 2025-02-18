@@ -13,3 +13,4 @@ pandas_ta
 flask
 flask-cors
 flask-socketio
+backtesting

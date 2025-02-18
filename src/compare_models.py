@@ -1,5 +1,6 @@
 import numpy as np
 from lightgbm import LGBMClassifier
+from pandas_ta import Strategy
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 import pandas as pd
 from xgboost import XGBClassifier
@@ -26,6 +27,22 @@ def get_models():
         #     max_depth=6,
         #     num_leaves=31,
         #     random_state=1         )
+    #     LightGBM = lgb.LGBMRegressor(
+    #     n_estimators=2000,
+    #     learning_rate=0.01,
+    #     max_depth=5,
+    #     num_leaves=2 ** 5 - 1,
+    #     colsample_bytree=0.1
+    # )
+    # We've found the following "deep" parameters perform much better, but they require much more CPU and RAM
+    # model = lgb.LGBMRegressor(
+    #     n_estimators=30_000,
+    #     learning_rate=0.001,
+    #     max_depth=10,
+    #     num_leaves=2**10,
+    #     colsample_bytree=0.1
+    #     min_data_in_leaf=10000,
+    # )
         # ,"Gradient Boosting": GradientBoostingClassifier(
         #     n_estimators=300,
         #     learning_rate=0.05,

@@ -1,3 +1,6 @@
+from backtesting import Backtest
+
+from src.Strategy import SmaCross, MLStrategy
 from src.compare_models import compare_models_performance, get_models, evaluate_model
 from src.ModelMetrics import compute_model_metrics
 from config import symbol, interval
@@ -135,7 +138,7 @@ from src.processing import fetch_data, preprocess_data, final_processing
 #     return predictions, trades, model_metrics
 
 
-def evaluate_models(data, predictors, start=4800, step=240):
+def evaluate_models(data, predictors, start=2400, step=240):
     models = get_models()
     model_metrics, model_predictions, model_trades = {}, {}, {}
 
@@ -144,15 +147,30 @@ def evaluate_models(data, predictors, start=4800, step=240):
         predictions = evaluate_model(model, model_name, data, predictors, start, step, model_counter)
 
         if predictions is not None:
-            filtered_predictions = predictions[predictions["Predictions"] != 0].dropna(subset=["Predictions"])
-            trades, model_metrics[model_name] = compute_model_metrics(model_name, filtered_predictions, data, predictions)
-            model_predictions[model_name] = predictions
-            model_trades[model_name] = trades
+            # filtered_predictions = predictions[predictions["Predictions"] != 0].dropna(subset=["Predictions"])
+            filtered_predictions = predictions.dropna(subset=["Predictions"])
+            df_prices = data.join(filtered_predictions['Predictions'])
+            # print(df_prices)
+            bt = Backtest(df_prices, MLStrategy, cash=1_000_000, commission=.002)
+            stats = bt.run(target_candle=240,
+                                    profit_perc=4.00,
+                                    stop_loss_perc=1.00,
+                                    max_positions=10)
+            print(stats)
+
+            bt.plot()
+
+            # trades, model_metrics[model_name] = compute_model_metrics(model_name, filtered_predictions, data, predictions)
+            # model_predictions[model_name] = predictions
+            # model_trades[model_name] = trades
 
     return model_predictions, model_trades, model_metrics
 
 
 def main():
+    from backtesting import Backtest
+
+
     print("1. Fetching data...")
     df = fetch_data(symbol, interval)
 
@@ -183,7 +201,9 @@ def main():
     df = final_processing(df)
 
     print("\n5. Evaluating multiple models...")
-    model_predictions, model_trades, model_metrics = evaluate_models(df, predictors)
+    model_predictions, model_trades, model_metrics = evaluate_models(df, sorted_predictors)
+
+
 
     print("\n6. Comparing model performances...")
     trading_comparison, ml_metrics_comparison = compare_models_performance(model_metrics)
