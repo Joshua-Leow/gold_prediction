@@ -151,7 +151,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
             filtered_predictions = predictions.dropna(subset=["Predictions"])
             df_prices = data.join(filtered_predictions['Predictions'])
             # print(df_prices)
-            bt = Backtest(df_prices, MLStrategy, cash=1_000_000, commission=.00002)
+            bt = Backtest(df_prices, MLStrategy, cash=10_000, commission=.002)
             stats = bt.run(target_candle=target_candle, profit_perc=profit_perc,
                             stop_loss_perc=stop_loss_perc, max_positions=max_positions)
             print(stats)

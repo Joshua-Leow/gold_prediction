@@ -3,8 +3,8 @@ import numpy as np
 symbol = 'GC=F'                          # Trading symbol to be downloaded with yfinance
 interval = '1h'                          # Time interval
 confidence = 0.5                         # Prediction confidence threshold
-target_candle = 60                      # Future candle to predict
-profit_perc = 0.10                       # Take profit percentage
+target_candle = 24                      # Future candle to predict
+profit_perc = 0.50                       # Take profit percentage
 stop_loss_perc = profit_perc/4                    # Stop loss percentage
 gap_between_trades = 0                   # Number of candles to wait before making the next trade
 feature_horizons = [2, 8, 32, 128, 512]  # Feature Horizons to be trained with

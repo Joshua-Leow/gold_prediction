@@ -37,6 +37,8 @@ def preprocess_data(df):
     df.index = pd.to_datetime(df.index, utc=True).map(lambda x: x.tz_convert('Singapore'))
     df.columns = df.columns.droplevel(1)
 
+    df = (df / 1e2).assign(Volume=df.Volume * 1e2)  # allow fractional shares
+
     from config import target_candle
     df["Future_High"] = df["High"].shift(-1).rolling(window=target_candle, min_periods=1).max()
     df["Future_Low"] = df["Low"].shift(-1).rolling(window=target_candle, min_periods=1).min()
