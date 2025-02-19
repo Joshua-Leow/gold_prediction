@@ -38,7 +38,6 @@ class SmaCross(Strategy):
 
 from backtesting import Strategy
 from backtesting.lib import crossover
-import pandas as pd
 import numpy as np
 
 

@@ -3,13 +3,13 @@ import numpy as np
 symbol = 'GC=F'                          # Trading symbol to be downloaded with yfinance
 interval = '1h'                          # Time interval
 confidence = 0.5                         # Prediction confidence threshold
-target_candle = 240                      # Future candle to predict
-profit_perc = 4.00                       # Take profit percentage
-stop_loss_perc = 1.00                    # Stop loss percentage
+target_candle = 60                      # Future candle to predict
+profit_perc = 0.10                       # Take profit percentage
+stop_loss_perc = profit_perc/4                    # Stop loss percentage
 gap_between_trades = 0                   # Number of candles to wait before making the next trade
 feature_horizons = [2, 8, 32, 128, 512]  # Feature Horizons to be trained with
 max_positions = 10                       # Max number of open positions at a time
-long_bias = 1.6                          # Long bias (1.0 representing no bias)
+long_bias = 1.0                          # Long bias (1.0 representing no bias)
 leverage = 10                            # leverage multiplier
 
 def define_target_labels(df):

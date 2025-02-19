@@ -21,7 +21,8 @@ def get_period(interval):
 
 
 def fetch_data(symbol, interval):
-    saved_path = Path(os.path.join(os.getcwd(), f"data/archive/{symbol}_{interval}_archive.csv"))
+    # saved_path = Path(os.path.join(os.getcwd(), f"data/archive/{symbol}_{interval}_archive.csv"))
+    saved_path = Path(os.path.join(os.getcwd(), f"data/frd_sample_futures_GC/GC_1min_sample.csv"))
     if os.path.exists(saved_path):
         df = pd.read_csv(saved_path, index_col=0, header=[0, 1])
     else:
