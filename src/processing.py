@@ -10,14 +10,19 @@ from config import target_candle, define_target_labels
 
 
 def get_period(interval):
-    if interval == '1d' or interval == '1w':
+    # Valid intervals: 1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo
+    _max_days = ['1d','5d','1wk','1mo','3mo']
+    _730_days = ['60m','1h']
+    _60_days = ['2m','5m','15m','30m','90m']
+    if interval in _max_days:
         return 'max'
-    elif interval == '1h':
+    elif interval in _730_days:
         return '730d'
-    elif interval == '5m':
+    elif interval in _60_days:
         return '60d'
     elif interval == '1m':
         return '8d'
+    return None
 
 
 def fetch_data(symbol, interval):
