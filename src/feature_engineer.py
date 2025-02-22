@@ -70,7 +70,7 @@ def add_total_random_signal(df):
 
 def get_atr(df, length=14):
     atr = pandas_ta.atr(high=df['High'], low=df['Low'], close=df['Close'], length=length)
-    normalised_atr = atr.sub(atr.mean()).div(atr.std())
+    # normalised_atr = atr.sub(atr.mean()).div(atr.std())
     df['atr'] = atr
     new_predictors = ["atr"]
     return new_predictors, df

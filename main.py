@@ -3,7 +3,7 @@ from backtesting import Backtest
 from src.Strategy import SmaCross, MLStrategy, MLTrailingStrategy, RandomTrailingStrategy
 from src.compare_models import compare_models_performance, get_models, evaluate_model
 from src.ModelMetrics import compute_model_metrics
-from config import symbol, interval, target_candle, profit_perc, stop_loss_perc, max_positions
+from config import symbol, interval, target_candle, profit_perc, stop_loss_perc, max_positions, leverage
 from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, get_atr, \
     get_bollinger_bands, get_garman_klass_vol, sort_features, add_total_random_signal
 from src.plot_chart import plot_finplot
@@ -152,7 +152,7 @@ def evaluate_models(data, predictors, start=2400, step=240):
             df_prices = data.join(filtered_predictions['Predictions'])
             df_prices = add_total_random_signal(df_prices).dropna(subset=["atr"])
             # print(df_prices)
-            bt = Backtest(df_prices, RandomTrailingStrategy, cash=100_000, commission=.002)
+            bt = Backtest(df_prices, RandomTrailingStrategy, cash=100_000, margin=1/leverage, commission=.0002)
             stats = bt.run()
             print(stats)
 
