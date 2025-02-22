@@ -1,6 +1,6 @@
 from backtesting import Backtest
 
-from src.Strategy import SmaCross, MLStrategy
+from src.Strategy import SmaCross, MLStrategy, MLTrailingStrategy
 from src.compare_models import compare_models_performance, get_models, evaluate_model
 from src.ModelMetrics import compute_model_metrics
 from config import symbol, interval, target_candle, profit_perc, stop_loss_perc, max_positions
@@ -151,9 +151,8 @@ def evaluate_models(data, predictors, start=2400, step=240):
             filtered_predictions = predictions.dropna(subset=["Predictions"])
             df_prices = data.join(filtered_predictions['Predictions'])
             # print(df_prices)
-            bt = Backtest(df_prices, MLStrategy, cash=10_000, commission=.002)
-            stats = bt.run(target_candle=target_candle, profit_perc=profit_perc,
-                            stop_loss_perc=stop_loss_perc, max_positions=max_positions)
+            bt = Backtest(df_prices, MLTrailingStrategy, cash=100_000, commission=.002)
+            stats = bt.run(max_positions=max_positions)
             print(stats)
 
             bt.plot(plot_return=True, plot_drawdown=True, smooth_equity=True)

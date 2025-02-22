@@ -62,6 +62,7 @@ gold_prediction/
 │   └── archive/                # Historical data storage
 ├── config.py                   # Configuration parameters
 ├── main.py                     # Main execution file
+├── server.py                   # Initialise backtest API
 └── requirements.txt            # Project dependencies
 ```
 

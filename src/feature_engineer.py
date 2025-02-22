@@ -62,18 +62,18 @@ from config import target_candle
 #     return new_predictors, df
 
 
-def get_atr(df):
-    atr = pandas_ta.atr(high=df['High'], low=df['Low'], close=df['Close'], length=14)
+def get_atr(df, length=14):
+    atr = pandas_ta.atr(high=df['High'], low=df['Low'], close=df['Close'], length=length)
     normalised_atr = atr.sub(atr.mean()).div(atr.std())
-    df['atr'] = normalised_atr
+    df['atr'] = atr
     new_predictors = ["atr"]
     return new_predictors, df
 
 
-def get_bollinger_bands(df):
-    df['bb_low'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=20).iloc[:,0])
-    df['bb_mid'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=20).iloc[:,1])
-    df['bb_high'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=20).iloc[:,2])
+def get_bollinger_bands(df, length=20):
+    df['bb_low'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=length).iloc[:,0])
+    df['bb_mid'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=length).iloc[:,1])
+    df['bb_high'] = df['Close'].transform(lambda x: pandas_ta.bbands(close=np.log1p(x), length=length).iloc[:,2])
     new_predictors = ["bb_low", "bb_mid", "bb_high"]
     return new_predictors, df
 

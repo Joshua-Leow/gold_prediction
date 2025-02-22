@@ -54,9 +54,6 @@ class MLStrategy(Strategy):
         if 'Predictions' not in self.data.df:
             raise ValueError("Predictions column not found in data")
 
-        # Store predictions as a custom indicator
-        self.predictions = self.I(lambda: self.data.df['Predictions'])
-
     def next(self):
         """Define trading logic for each step"""
         current_bar = len(self.data) - 1
@@ -102,102 +99,42 @@ class MLStrategy(Strategy):
             return  # Skip if position size is too small
 
         # Open new position based on prediction
-        if self.predictions[-1] == 1 and len(self.trades) < self.max_positions:
+        if self.data.Predictions[-1] == 1 and len(self.trades) < self.max_positions:
             print(f"Opening long trade at {self.data.Close[-1]}")
             self.buy(size=position_size)
 
-        elif self.predictions[-1] == -1 and len(self.trades) < self.max_positions:
+        elif self.data.Predictions[-1] == -1 and len(self.trades) < self.max_positions:
             print(f"Opening short trade at {self.data.Close[-1]}")
             self.sell(size=position_size)
 
 
 class MLTrailingStrategy(Strategy):
-    # Strategy parameters
-    target_candle = 240
-    profit_perc = 4.00
-    stop_loss_perc = 1.00
+    # Trailing stop Strategy parameters
     max_positions = 10
-
-    # Trailing stop parameters
-    trailing_stop_atr_multiple = 2.0  # Multiple of ATR for trailing stop
-    min_trailing_stop_perc = 0.5     # Minimum trailing stop percentage
-    take_profit_atr_multiple = 4.0   # Multiple of ATR for take profit
-    atr_periods = 14                 # Periods for ATR calculation
+    trailing_stop_atr_multiple = 3.0  # Multiple of ATR for trailing stop
+    take_profit_atr_multiple = 10.0   # Multiple of ATR for take profit
 
     def init(self):
+        # super().init()
         """Initialize the strategy with predictions and indicators"""
         if 'Predictions' not in self.data.df:
             raise ValueError("Predictions column not found in data")
 
-        # Store predictions as a custom indicator
-        self.predictions = self.I(lambda: self.data.df['Predictions'])
-
-        # Calculate ATR for dynamic stop loss and take profit
-        self.atr = self.I(lambda: self.compute_atr(self.atr_periods))
-
-        # Track highest/lowest prices since entry for each trade
-        self.trade_highs = {}  # {trade_id: highest_price}
-        self.trade_lows = {}  # {trade_id: lowest_price}
-
-    def compute_atr(self, periods):
-        """Compute Average True Range"""
-        high = self.data.High
-        low = self.data.Low
-        close = self.data.Close
-
-        tr = np.maximum(
-            high - low,
-            np.abs(high - np.roll(close, 1)),
-            np.abs(low - np.roll(close, 1))
-        )
-        return pd.Series(tr).rolling(periods).mean()
-
-    def update_trailing_stops(self):
-        """Update stop loss and take profit levels for all open trades"""
-        current_price = self.data.Close[-1]
-        current_atr = self.atr[-1]
-
-        for trade in self.trades:
-            trade_id = id(trade)
-
-            # Initialize tracking if new trade
-            if trade_id not in self.trade_highs:
-                self.trade_highs[trade_id] = trade.entry_price
-                self.trade_lows[trade_id] = trade.entry_price
-
-            # Update trade high/low water marks
-            if trade.is_long:
-                self.trade_highs[trade_id] = max(self.trade_highs[trade_id], current_price)
-                trailing_stop = self.trade_highs[trade_id] - (current_atr * self.trailing_stop_atr_multiple)
-                # Ensure minimum distance from entry
-                min_stop = trade.entry_price * (1 - self.min_trailing_stop_perc / 100)
-                trailing_stop = max(trailing_stop, min_stop)
-                # Only update if new stop is higher than current
-                if not trade.sl or trailing_stop > trade.sl:
-                    trade.sl = trailing_stop
-                    print(f"Updated long stop loss to: {trailing_stop:.2f}")
-
-            else:  # Short trade
-                self.trade_lows[trade_id] = min(self.trade_lows[trade_id], current_price)
-                trailing_stop = self.trade_lows[trade_id] + (current_atr * self.trailing_stop_atr_multiple)
-                # Ensure minimum distance from entry
-                min_stop = trade.entry_price * (1 + self.min_trailing_stop_perc / 100)
-                trailing_stop = min(trailing_stop, min_stop)
-                # Only update if new stop is lower than current
-                if not trade.sl or trailing_stop < trade.sl:
-                    trade.sl = trailing_stop
-                    print(f"Updated short stop loss to: {trailing_stop:.2f}")
-
-            # Clean up closed trades
-            for trade_id in list(self.trade_highs.keys()):
-                if trade_id not in [id(t) for t in self.trades]:
-                    del self.trade_highs[trade_id]
-                    del self.trade_lows[trade_id]
-
     def next(self):
+        # super().next()
         """Define trading logic for each step"""
         # Update trailing stops for existing positions
-        self.update_trailing_stops()
+        # self.update_trailing_stops()
+        for trade in self.trades:
+            sltr = self.trailing_stop_atr_multiple * self.data.atr[-1]
+            if trade.is_long:
+                print(f"Updated long trade: {trade.entry_bar} stop loss from: {trade.sl} to ", end="")
+                trade.sl = max(trade.sl or np.inf, self.data.Close[-1] - sltr)
+                print(trade.sl)
+            else:
+                print(f"Updated short trade: {trade.entry_bar} stop loss from: {trade.sl} to ", end="")
+                trade.sl = min(trade.sl or np.inf, self.data.Close[-1] + sltr)
+                print(trade.sl)
 
         # Check if we can open new positions
         if len(self.trades) >= self.max_positions:
@@ -211,20 +148,15 @@ class MLTrailingStrategy(Strategy):
         if position_size < 1:
             return  # Skip if position size is too small
 
-        current_atr = self.atr[-1]
-        current_price = self.data.Close[-1]
-
-        # Open new position based on prediction
-        if self.predictions[-1] == 1 and len(self.trades) < self.max_positions:
-            print(f"Opening long trade at {current_price:.2f}")
-            # Initial stop loss and take profit based on ATR
-            initial_sl = current_price - (current_atr * self.trailing_stop_atr_multiple)
-            initial_tp = current_price + (current_atr * self.take_profit_atr_multiple)
-            self.buy(size=position_size, sl=initial_sl, tp=initial_tp)
-
-        elif self.predictions[-1] == -1 and len(self.trades) < self.max_positions:
-            print(f"Opening short trade at {current_price:.2f}")
-            # Initial stop loss and take profit based on ATR
-            initial_sl = current_price + (current_atr * self.trailing_stop_atr_multiple)
-            initial_tp = current_price - (current_atr * self.take_profit_atr_multiple)
-            self.sell(size=position_size, sl=initial_sl, tp=initial_tp)
+        if self.data.Predictions[-1] == 1 and len(self.trades) < self.max_positions:
+            current_close = self.data.Close[-1]
+            sl = current_close - self.trailing_stop_atr_multiple * self.data.atr[-1]
+            tp = current_close + self.take_profit_atr_multiple * (self.trailing_stop_atr_multiple * self.data.atr[-1])
+            print(f"Opening long trade on {self.data.index[-1]}, at price: {self.data.Close[-1]:.2f}")
+            self.buy(size=position_size, sl=sl)
+        elif self.data.Predictions[-1] == -1 and len(self.trades) < self.max_positions:
+            current_close = self.data.Close[-1]
+            sl = current_close + self.trailing_stop_atr_multiple * self.data.atr[-1]
+            tp = current_close - self.take_profit_atr_multiple * (self.trailing_stop_atr_multiple * self.data.atr[-1])
+            print(f"Opening short trade on {self.data.index[-1]}, at price:  {self.data.Close[-1]:.2f}")
+            self.sell(size=position_size, sl=sl)
