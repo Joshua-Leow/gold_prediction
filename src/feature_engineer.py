@@ -61,6 +61,12 @@ from config import target_candle
 #
 #     return new_predictors, df
 
+def total_random_signal(df, current_candle):
+    return np.random.choice([1,2])
+
+def add_total_random_signal(df):
+    df['RandomSignal'] = df.apply(lambda row: total_random_signal(df, row.name), axis=1)
+    return df
 
 def get_atr(df, length=14):
     atr = pandas_ta.atr(high=df['High'], low=df['Low'], close=df['Close'], length=length)

@@ -1,11 +1,11 @@
 from backtesting import Backtest
 
-from src.Strategy import SmaCross, MLStrategy, MLTrailingStrategy
+from src.Strategy import SmaCross, MLStrategy, MLTrailingStrategy, RandomTrailingStrategy
 from src.compare_models import compare_models_performance, get_models, evaluate_model
 from src.ModelMetrics import compute_model_metrics
 from config import symbol, interval, target_candle, profit_perc, stop_loss_perc, max_positions
 from src.feature_engineer import get_macd_features, get_close_ratio_and_trend, get_atr, \
-    get_bollinger_bands, get_garman_klass_vol, sort_features
+    get_bollinger_bands, get_garman_klass_vol, sort_features, add_total_random_signal
 from src.plot_chart import plot_finplot
 from src.processing import fetch_data, preprocess_data, final_processing
 
@@ -150,9 +150,10 @@ def evaluate_models(data, predictors, start=2400, step=240):
             # filtered_predictions = predictions[predictions["Predictions"] != 0].dropna(subset=["Predictions"])
             filtered_predictions = predictions.dropna(subset=["Predictions"])
             df_prices = data.join(filtered_predictions['Predictions'])
+            df_prices = add_total_random_signal(df_prices).dropna(subset=["atr"])
             # print(df_prices)
-            bt = Backtest(df_prices, MLTrailingStrategy, cash=100_000, commission=.002)
-            stats = bt.run(max_positions=max_positions)
+            bt = Backtest(df_prices, RandomTrailingStrategy, cash=100_000, commission=.002)
+            stats = bt.run()
             print(stats)
 
             bt.plot(plot_return=True, plot_drawdown=True, smooth_equity=True)
@@ -195,6 +196,7 @@ def main():
     print(f"Features used: {sorted_predictors}")
 
     print("\n4. Final Processing of data...")
+    # df = add_total_random_signal(df)
     df = final_processing(df)
 
     print("\n5. Evaluating multiple models...")

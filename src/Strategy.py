@@ -160,3 +160,36 @@ class MLTrailingStrategy(Strategy):
             tp = current_close - self.take_profit_atr_multiple * (self.trailing_stop_atr_multiple * self.data.atr[-1])
             print(f"Opening short trade on {self.data.index[-1]}, at price:  {self.data.Close[-1]:.2f}")
             self.sell(size=position_size, sl=sl)
+
+
+class RandomTrailingStrategy(Strategy):
+    mysize = 0.01  # Trade size 1% of the account
+    sl_atr_ratio = 3
+    tp_sl_ratio = 1
+
+    def init(self):
+        super().init()
+
+    def next(self):
+        super().next()
+
+        for trade in self.trades:
+            sltr = self.sl_atr_ratio * self.data.atr[-1]
+            if trade.is_long:
+                trade.sl = max(trade.sl or -np.inf, self.data.Close[-1] - sltr)
+            else:
+                trade.sl = min(trade.sl or np.inf, self.data.Close[-1] + sltr)
+
+        if self.data.RandomSignal[-1] == 2 and not self.position:
+            # Open a new long position with calculated SL
+            current_close = self.data.Close[-1]
+            sl = current_close - self.sl_atr_ratio * self.data.atr[-1]  # SL below the close price
+            # tp = current_close + self.tp_sl_ratio * (self.sl_atr_ratio * self.data.ATR[-1])  # TP above the close price
+            self.buy(size=self.mysize, sl=sl)
+
+        elif self.data.RandomSignal[-1] == 1 and not self.position:
+            # short position
+            current_close = self.data.Close[-1]
+            sl = current_close + self.sl_atr_ratio * self.data.atr[-1]
+            # tp = current_close - self.tp_sl_ratio * (self.sl_atr_ratio * self.data.ATR[-1])
+            self.sell(size=self.mysize, sl=sl)
