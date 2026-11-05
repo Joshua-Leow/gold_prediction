@@ -1,0 +1,814 @@
+//@version=6
+// IGLOF + Gold Prediction Technical Footprint Strategy: TradingView classified intrabar volume.
+// NO exchange DOM, market-by-order, verified aggressor-side futures prints or news API.
+// Confirmed pivots, confirmed higher-timeframe values and closed-bar entry events only.
+strategy("IGLOF x Gold Prediction | FOOTPRINT STRATEGY v1.0", shorttitle="IGLOF GP FO STR", overlay=true, max_lines_count=120, max_boxes_count=50, max_labels_count=100, initial_capital=10000, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=1, commission_type=strategy.commission.percent, commission_value=0.02, slippage=2, process_orders_on_close=true, calc_on_every_tick=false)
+
+// ----------------------------- USER PARAMETERS -----------------------------
+string gs = "01 - Structure and liquidity"
+int pivotBars = input.int(3, "Confirmed pivot half-width", minval=1, maxval=15, group=gs)
+bool allowLocal = input.bool(false, "Include chart-timeframe sweeps (more signals)", group=gs, tooltip="OFF by default to avoid repeated local SSL/BSL markers. Confirmed 1H and 15M levels remain primary.")
+float minSweepATR = input.float(0.05, "Minimum sweep penetration / ATR", minval=0, maxval=1, step=0.01, group=gs)
+int minSweepTicks = input.int(2, "Minimum sweep penetration / ticks", minval=1, maxval=50, group=gs)
+int reclaimLimit = input.int(3, "Bars allowed for reclaim", minval=0, maxval=15, group=gs)
+int shiftLimit = input.int(12, "Bars allowed from reclaim to MSS", minval=1, maxval=40, group=gs)
+int breakLookback = input.int(6, "Fallback swing-break lookback", minval=2, maxval=25, group=gs)
+float shiftBodyATR = input.float(0.50, "MSS body >= ATR multiplier", minval=0.1, maxval=3, step=0.05, group=gs)
+int sweepSpacing = input.int(7, "Minimum bars between new sweeps", minval=0, maxval=60, group=gs)
+
+string go = "02 - Order blocks"
+int obLookback = input.int(15, "Search preceding opposite candles", minval=2, maxval=40, group=go)
+int beforeSweep = input.int(4, "Allow OB candles this many bars before sweep", minval=0, maxval=15, group=go)
+int obLifetime = input.int(40, "Expire order block after N bars", minval=5, maxval=150, group=go)
+int maxTouches = input.int(2, "Maximum distinct block touches", minval=1, maxval=5, group=go)
+float invalidationATR = input.float(0.05, "Order block close invalidation buffer / ATR", minval=0, maxval=2, step=0.05, group=go)
+float zoneCloseFrac = input.float(0.50, "Bull close above zone fraction (inverse for bear)", minval=0, maxval=1, step=0.05, group=go)
+
+string gf = "03 - TradingView footprint classified volume"
+int footprintTicks = input.int(100, "Ticks per footprint row (Premium / Ultimate)", minval=1, maxval=10000, group=gf)
+int imbalancePct = input.int(300, "Diagonal imbalance percent", minval=100, maxval=1000, group=gf)
+int minStacked = input.int(2, "Number of consecutive imbalance rows", minval=1, maxval=8, group=gf)
+bool requireStacked = input.bool(false, "Hard gate: stacked imbalance must agree", group=gf)
+bool requirePOC = input.bool(false, "Hard gate: close on directional side of bar POC", group=gf)
+int rvLength = input.int(50, "Relative-volume baseline lookback", minval=10, maxval=200, group=gf)
+bool contextualRVOL = input.bool(true, "Compare against bars from same session regime", group=gf, tooltip="Normalizes London/NY bars using priority-session samples and quieter bars using recent quiet-session samples. Uses all-bar average if too few samples.")
+float minRVOL = input.float(1.20, "Relative volume at entry", minval=0.1, maxval=10, step=0.05, group=gf)
+float minPressure = input.float(0.22, "Minimum signed footprint delta ratio", minval=0.05, maxval=0.9, step=0.01, group=gf)
+bool filterVWAP = input.bool(false, "Hard gate: directional side of VWAP", group=gf)
+float quietRVOL = input.float(0.65, "Quiet-session minimum RVOL", minval=0.10, maxval=3.0, step=0.05, group=gf)
+float quietPressure = input.float(0.30, "Quiet-session minimum directional pressure", minval=0.05, maxval=0.90, step=0.01, group=gf)
+float quietBodyATR = input.float(0.30, "Quiet-session minimum candle body / ATR", minval=0.05, maxval=2, step=0.05, group=gf)
+
+string gt = "04 - Sessions and manual economic events"
+string sessionMode = input.string("Adaptive", "Session policy", options=["Adaptive", "Priority only"], group=gt, tooltip="Adaptive allows quieter sessions with separate stricter flow and body confirmation. Priority only disables those entries.")
+string london = input.session("0800-1100", "London (Europe/London)", group=gt)
+string newYork = input.session("0820-1130", "New York (America/New_York)", group=gt)
+bool manualNewsLock = input.bool(false, "EMERGENCY manual trade lock", group=gt)
+bool blockMedium = input.bool(true, "Block during MEDIUM event window", group=gt)
+bool blockLow = input.bool(false, "Block during LOW event window (default: warn only)", group=gt)
+int highBefore = input.int(15, "HIGH: block minutes before", minval=0, maxval=180, group=gt)
+int highAfter = input.int(5, "HIGH: block minutes after", minval=0, maxval=180, group=gt)
+int medBefore = input.int(5, "MEDIUM: window minutes before", minval=0, maxval=180, group=gt)
+int medAfter = input.int(3, "MEDIUM: window minutes after", minval=0, maxval=180, group=gt)
+int lowBefore = input.int(2, "LOW: window minutes before", minval=0, maxval=180, group=gt)
+int lowAfter = input.int(1, "LOW: window minutes after", minval=0, maxval=180, group=gt)
+// Pine has no automatic future economic-calendar event timestamp feed. ENTER events below.
+bool news1Enable = input.bool(false, "Enable event 1", group=gt)
+string news1Name = input.string("US CPI / NFP / FOMC", "Event 1 label", group=gt)
+int news1Time = input.time(timestamp("01 Jan 2027 00:00 +0000"), "Event 1 date/time", group=gt)
+string news1Impact = input.string("HIGH", "Event 1 impact", options=["HIGH", "MEDIUM", "LOW"], group=gt)
+bool news2Enable = input.bool(false, "Enable event 2", group=gt)
+string news2Name = input.string("Fed speech / PPI", "Event 2 label", group=gt)
+int news2Time = input.time(timestamp("01 Jan 2027 00:00 +0000"), "Event 2 date/time", group=gt)
+string news2Impact = input.string("MEDIUM", "Event 2 impact", options=["HIGH", "MEDIUM", "LOW"], group=gt)
+bool news3Enable = input.bool(false, "Enable event 3", group=gt)
+string news3Name = input.string("Other US data", "Event 3 label", group=gt)
+int news3Time = input.time(timestamp("01 Jan 2027 00:00 +0000"), "Event 3 date/time", group=gt)
+string news3Impact = input.string("LOW", "Event 3 impact", options=["HIGH", "MEDIUM", "LOW"], group=gt)
+
+string gr = "05 - Entry quality / risk illustration"
+int minScore = input.int(80, "Required score / 100 (NOT win probability)", minval=0, maxval=100, group=gr)
+int cooldown = input.int(8, "Bars between entry alerts", minval=0, maxval=100, group=gr)
+float stopBuffer = input.float(0.15, "Structural stop buffer / ATR", minval=0, maxval=2, step=0.05, group=gr)
+float maxRiskATR = input.float(4.0, "Maximum entry-to-stop distance / ATR", minval=0.5, maxval=20, step=0.25, group=gr)
+float maxRangeATR = input.float(3.0, "Block entry if candle range exceeds ATR multiple", minval=0.5, maxval=15, step=0.25, group=gr)
+float takeProfitR = input.float(2.0, "Illustrative target (R)", minval=0.5, maxval=10, step=0.25, group=gr)
+float estimatedSpread = input.float(0.0, "Manual CFD spread estimate (price units; 0=not assessed)", minval=0, maxval=100, step=0.05, group=gr)
+float maxSpreadATR = input.float(0.20, "Maximum estimated spread / ATR", minval=0.01, maxval=2, step=0.01, group=gr)
+
+string gd = "06 - Clean chart layout"
+bool plotVWAP = input.bool(true, "Session VWAP", group=gd)
+bool plot1H = input.bool(true, "Only CURRENT confirmed 1H high/low", group=gd)
+bool plot15M = input.bool(false, "Only CURRENT confirmed 15M high/low", group=gd)
+bool showSweepMarkers = input.bool(true, "Confirmed SSL / BSL reclaim markers", group=gd)
+bool showProbeMarkers = input.bool(false, "Additional sweep PROBE markers (noisy)", group=gd)
+bool showShiftMarkers = input.bool(true, "Confirmed MSS markers", group=gd)
+bool showOB = input.bool(true, "Show active order block zones", group=gd)
+bool showTradePlan = input.bool(true, "Show most recent entry / SL / TP", group=gd)
+bool showDashboard = input.bool(true, "Show pass / wait / N/A diagnostic matrix", group=gd)
+bool highlightNews = input.bool(true, "Shade manually entered news windows", group=gd)
+bool showLastFootprintPOC = input.bool(true, "Show latest footprint POC / value area", group=gd)
+string dashLocation = input.string("Top Right", "Dashboard location", options=["Top Right", "Bottom Right", "Top Left"], group=gd)
+int levelPast = input.int(25, "Current liquidity level length (bars back)", minval=5, maxval=100, group=gd)
+int levelForward = input.int(8, "Current liquidity level extension (bars)", minval=1, maxval=50, group=gd)
+int planBars = input.int(18, "Entry/SL/TP projection length", minval=5, maxval=75, group=gd)
+
+
+// ----------------- GITHUB GOLD_PREDICTION FEATURE LAYER -----------------
+// Inspired by public technical features in Joshua-Leow/gold_prediction.
+// This is NOT a translation of Random Forest/XGBoost/LightGBM model weights.
+string gg = "07 - Gold prediction technical confirmations"
+string technicalPolicy = input.string("Gate", "Technical indicator policy", options=["Gate", "Advisory"], group=gg, tooltip="Gate requires a configurable number of technical confirmations. Advisory displays them but does not block trades.")
+int minTechVotes = input.int(3, "Minimum technical votes (out of 6)", minval=0, maxval=6, group=gg)
+int rsiLen = input.int(14, "RSI period", minval=2, maxval=100, group=gg)
+float rsiBullThreshold = input.float(51.0, "RSI minimum for BUY", minval=0, maxval=100, group=gg)
+float rsiBearThreshold = input.float(49.0, "RSI maximum for SELL", minval=0, maxval=100, group=gg)
+int macdFast = input.int(12, "MACD fast", minval=1, maxval=100, group=gg)
+int macdSlow = input.int(26, "MACD slow", minval=2, maxval=200, group=gg)
+int macdSignal = input.int(9, "MACD signal", minval=1, maxval=100, group=gg)
+int bbLen = input.int(20, "Bollinger period", minval=5, maxval=100, group=gg)
+float bbMult = input.float(2.0, "Bollinger standard deviations", minval=0.5, maxval=5, step=0.25, group=gg)
+int rocLen = input.int(8, "Rate of Change lookback", minval=1, maxval=200, group=gg)
+int gkLen = input.int(20, "Garman-Klass volatility smoothing", minval=5, maxval=100, group=gg)
+float gkLow = input.float(0.55, "Garman-Klass minimum vs baseline", minval=0, maxval=5, step=0.05, group=gg)
+float gkHigh = input.float(3.0, "Garman-Klass maximum vs baseline", minval=0.1, maxval=10, step=0.1, group=gg)
+float atrLow = input.float(0.55, "ATR minimum vs baseline", minval=0, maxval=5, step=0.05, group=gg)
+float atrHigh = input.float(3.0, "ATR maximum vs baseline", minval=0.1, maxval=10, step=0.1, group=gg)
+
+string gq = "08 - Backtest orders and risk"
+string sizingMode = input.string("Fixed", "Position sizing method", options=["Fixed", "Equity risk"], group=gq)
+float fixedQty = input.float(1, "Fixed simulated quantity", minval=0.0001, step=0.1, group=gq, tooltip="Unit meaning varies across symbols and brokers. Set a realistic quantity in Strategy Tester.")
+float equityRiskPct = input.float(0.50, "Equity risk per trade (%)", minval=0.01, maxval=5, step=0.05, group=gq)
+float valuePerPoint = input.float(1.0, "Currency P/L per 1 price point per unit", minval=0.000001, group=gq, tooltip="Verify with broker: GC futures typically 100 USD/point/contract, MGC 10; CFD symbols vary by contract and lot.")
+float qtyStep = input.float(0.01, "Minimum quantity increment", minval=0.00001, group=gq)
+float minOrderQty = input.float(0.01, "Minimum allowed quantity", minval=0.00001, group=gq)
+bool showTechPlots = input.bool(false, "Show Bollinger bands on price chart", group=gq)
+
+// 6 feature groups: MACD, RSI, Bollinger position, ROC, ATR regime, Garman-Klass regime.
+[macdValue, macdAvg, macdHist] = ta.macd(close, macdFast, macdSlow, macdSignal)
+float rsiValue = ta.rsi(close, rsiLen)
+float bbMiddle = ta.sma(close, bbLen)
+float bbDev = ta.stdev(close, bbLen) * bbMult
+float bbUpper = bbMiddle + bbDev
+float bbLower = bbMiddle - bbDev
+float rocValue = ta.roc(close, rocLen)
+// Garman-Klass measures volatility from OHLC. It does not measure exchange volume.
+float gkLogRange = high > 0 and low > 0 ? math.log(high / low) : na
+float gkLogBody = open > 0 and close > 0 ? math.log(close / open) : na
+float gkVar = not na(gkLogRange) and not na(gkLogBody) ? 0.5 * math.pow(gkLogRange, 2) - (2.0 * math.log(2.0) - 1.0) * math.pow(gkLogBody, 2) : na
+float gkVol = math.sqrt(math.max(nz(ta.sma(gkVar, gkLen)), 0))
+float gkBase = ta.sma(gkVol, 100)
+float atrBase = ta.sma(ta.atr(14), 100)
+float atrRegime = not na(atrBase) and atrBase > 0 ? ta.atr(14) / atrBase : na
+float gkRegime = not na(gkBase) and gkBase > 0 ? gkVol / gkBase : na
+bool atrRegimeOK = not na(atrRegime) and atrRegime >= atrLow and atrRegime <= atrHigh
+bool gkRegimeOK = not na(gkRegime) and gkRegime >= gkLow and gkRegime <= gkHigh
+bool techBullMACD = not na(macdHist) and macdValue > macdAvg
+bool techBearMACD = not na(macdHist) and macdValue < macdAvg
+bool techBullRSI = not na(rsiValue) and rsiValue >= rsiBullThreshold
+bool techBearRSI = not na(rsiValue) and rsiValue <= rsiBearThreshold
+bool techBullBB = not na(bbMiddle) and close >= bbMiddle
+bool techBearBB = not na(bbMiddle) and close <= bbMiddle
+bool techBullROC = not na(rocValue) and rocValue > 0
+bool techBearROC = not na(rocValue) and rocValue < 0
+int bullTechVotes = (techBullMACD ? 1 : 0) + (techBullRSI ? 1 : 0) + (techBullBB ? 1 : 0) + (techBullROC ? 1 : 0) + (atrRegimeOK ? 1 : 0) + (gkRegimeOK ? 1 : 0)
+int bearTechVotes = (techBearMACD ? 1 : 0) + (techBearRSI ? 1 : 0) + (techBearBB ? 1 : 0) + (techBearROC ? 1 : 0) + (atrRegimeOK ? 1 : 0) + (gkRegimeOK ? 1 : 0)
+bool repoBullOK = technicalPolicy == "Advisory" or bullTechVotes >= minTechVotes
+bool repoBearOK = technicalPolicy == "Advisory" or bearTechVotes >= minTechVotes
+
+
+// -------------------------- DATA AND FLOW METRICS -------------------------
+int seconds = timeframe.in_seconds()
+bool validTF = timeframe.isintraday and seconds >= 60 and seconds <= 3600
+float atr = ta.atr(14)
+float vwapValue = ta.vwap(hlc3)
+float barRange = high - low
+float body = math.abs(close - open)
+float candlePressure = barRange > 0 ? (close - open) / barRange : 0.0
+// Source: TradingView lower-timeframe categorized footprint, NOT a reconstructed exchange DOM.
+// ONE footprint request only: Pine limits a script to one request.footprint() call.
+footprint fp = request.footprint(footprintTicks, 70, imbalancePct)
+bool fpReady = not na(fp)
+float fpBuy = fpReady ? fp.buy_volume() : na
+float fpSell = fpReady ? fp.sell_volume() : na
+float fpDelta = fpReady ? fp.delta() : na
+float fpTotal = fpReady ? fp.total_volume() : na
+float pressure = fpReady and fpTotal > 0 ? fpDelta / fpTotal : na
+float fpPoc = na
+float fpVAH = na
+float fpVAL = na
+int fpBuyStack = 0
+int fpSellStack = 0
+int buyRun = 0
+int sellRun = 0
+int fpBuyCount = 0
+int fpSellCount = 0
+if fpReady
+    volume_row pr = fp.poc()
+    volume_row vrh = fp.vah()
+    volume_row vrl = fp.val()
+    fpPoc := (pr.up_price() + pr.down_price()) * 0.5
+    fpVAH := vrh.up_price()
+    fpVAL := vrl.down_price()
+    for r in fp.rows()
+        bool bi = r.has_buy_imbalance()
+        bool si = r.has_sell_imbalance()
+        buyRun := bi ? buyRun + 1 : 0
+        sellRun := si ? sellRun + 1 : 0
+        fpBuyStack := math.max(fpBuyStack, buyRun)
+        fpSellStack := math.max(fpSellStack, sellRun)
+        fpBuyCount += bi ? 1 : 0
+        fpSellCount += si ? 1 : 0
+var float fpSessionCVD = 0.0
+if timeframe.change("D")
+    fpSessionCVD := 0.0
+if fpReady
+    fpSessionCVD += fpDelta
+bool bullPOC = fpReady and not na(fpPoc) and close >= fpPoc
+bool bearPOC = fpReady and not na(fpPoc) and close <= fpPoc
+bool bullStack = fpReady and fpBuyStack >= minStacked
+bool bearStack = fpReady and fpSellStack >= minStacked
+bool footprintBullReady = fpReady and (not requirePOC or bullPOC) and (not requireStacked or bullStack)
+bool footprintBearReady = fpReady and (not requirePOC or bearPOC) and (not requireStacked or bearStack)
+bool londonNow = not na(time(timeframe.period, london, "Europe/London"))
+bool nyNow = not na(time(timeframe.period, newYork, "America/New_York"))
+bool priority = londonNow or nyNow
+bool quietSession = not priority
+string sessionName = londonNow and nyNow ? "LONDON + NY" : londonNow ? "LONDON" : nyNow ? "NEW YORK" : "QUIET / ASIA / OTHER"
+// The baseline excludes the current bar. Recent samples from the SAME market regime
+// help distinguish quiet-session bursts from quieter absolute volume levels.
+float prevVolume = ta.sma(volume[1], rvLength)
+float priorityWeight = ta.sma(priority[1] ? 1.0 : 0.0, rvLength)
+float quietWeight = ta.sma(quietSession[1] ? 1.0 : 0.0, rvLength)
+float prioritySum = ta.sma(priority[1] ? nz(volume[1]) : 0.0, rvLength)
+float quietSum = ta.sma(quietSession[1] ? nz(volume[1]) : 0.0, rvLength)
+float priorityMean = priorityWeight >= 0.10 ? prioritySum / priorityWeight : na
+float quietMean = quietWeight >= 0.10 ? quietSum / quietWeight : na
+float sessionBaseline = priority ? priorityMean : quietMean
+float baseline = contextualRVOL and not na(sessionBaseline) and sessionBaseline > 0 ? sessionBaseline : prevVolume
+float rvol = not na(volume) and not na(baseline) and baseline > 0 ? volume / baseline : na
+bool volumeReady = not na(volume) and volume > 0 and not na(rvol)
+bool sessionOK = sessionMode == "Adaptive" or priority
+float activeRVOLThreshold = priority ? minRVOL : quietRVOL
+float activePressureThreshold = priority ? minPressure : quietPressure
+bool rvolOK = volumeReady and rvol >= activeRVOLThreshold
+bool bullishProxy = not na(pressure) and pressure >= activePressureThreshold
+bool bearishProxy = not na(pressure) and pressure <= -activePressureThreshold
+bool quietBodyOK = priority or (atr > 0 and body >= quietBodyATR * atr)
+// No assumption that low RVOL alone creates a useful quiet-session setup.
+bool rangeOK = atr > 0 and barRange <= atr * maxRangeATR
+bool spreadOK = estimatedSpread == 0 or (atr > 0 and estimatedSpread / atr <= maxSpreadATR)
+
+// ---------- MANUAL ECONOMIC EVENTS: HIGH, MEDIUM, LOW --------------
+f_event(int eventTime, bool enabled, string impact) =>
+    int beforeMin = impact == "HIGH" ? highBefore : impact == "MEDIUM" ? medBefore : lowBefore
+    int afterMin = impact == "HIGH" ? highAfter : impact == "MEDIUM" ? medAfter : lowAfter
+    enabled and time_close > eventTime - beforeMin * 60000 and time < eventTime + afterMin * 60000
+bool n1 = f_event(news1Time, news1Enable, news1Impact)
+bool n2 = f_event(news2Time, news2Enable, news2Impact)
+bool n3 = f_event(news3Time, news3Enable, news3Impact)
+bool newsHigh = (n1 and news1Impact == "HIGH") or (n2 and news2Impact == "HIGH") or (n3 and news3Impact == "HIGH")
+bool newsMedium = (n1 and news1Impact == "MEDIUM") or (n2 and news2Impact == "MEDIUM") or (n3 and news3Impact == "MEDIUM")
+bool newsLow = (n1 and news1Impact == "LOW") or (n2 and news2Impact == "LOW") or (n3 and news3Impact == "LOW")
+bool newsOK = not manualNewsLock and not newsHigh and not (blockMedium and newsMedium) and not (blockLow and newsLow)
+string newsEventName = n1 ? news1Name : n2 ? news2Name : n3 ? news3Name : ""
+bool calendarConfigured = news1Enable or news2Enable or news3Enable
+string newsStatus = manualNewsLock ? "MANUAL LOCK" : newsHigh ? "HIGH / BLOCK" : newsMedium ? (blockMedium ? "MEDIUM / BLOCK" : "MEDIUM / CAUTION") : newsLow ? (blockLow ? "LOW / BLOCK" : "LOW / CAUTION") : (calendarConfigured ? "NO ACTIVE EVENT" : "NO EVENTS ENTERED")
+// The schedule is supplied by the trader; Pine cannot query tomorrow's calendar releases.
+int newsPoints = newsOK ? (newsMedium ? 2 : newsLow ? 3 : 5) : 0
+bool globalGate = validTF and sessionOK and newsOK and volumeReady and quietBodyOK and rangeOK and spreadOK and fpReady
+
+// All higher-timeframe pivot values are taken from the LAST COMPLETE HTF bar.
+f_prevHigh() =>
+    float pivot = ta.pivothigh(high, pivotBars, pivotBars)
+    float level = ta.valuewhen(not na(pivot), pivot, 0)
+    level[1]
+f_prevLow() =>
+    float pivot = ta.pivotlow(low, pivotBars, pivotBars)
+    float level = ta.valuewhen(not na(pivot), pivot, 0)
+    level[1]
+
+float h1High = request.security(syminfo.tickerid, "60", f_prevHigh(), lookahead=barmerge.lookahead_on)
+float h1Low = request.security(syminfo.tickerid, "60", f_prevLow(), lookahead=barmerge.lookahead_on)
+float m15High = request.security(syminfo.tickerid, "15", f_prevHigh(), lookahead=barmerge.lookahead_on)
+float m15Low = request.security(syminfo.tickerid, "15", f_prevLow(), lookahead=barmerge.lookahead_on)
+float ph = ta.pivothigh(high, pivotBars, pivotBars)
+float pl = ta.pivotlow(low, pivotBars, pivotBars)
+float localHigh = ta.valuewhen(not na(ph), ph, 0)
+float localLow = ta.valuewhen(not na(pl), pl, 0)
+float localBreakHigh = nz(localHigh[1], ta.highest(high[1], breakLookback))
+float localBreakLow = nz(localLow[1], ta.lowest(low[1], breakLookback))
+float sweepDepth = math.max(atr * minSweepATR, minSweepTicks * syminfo.mintick)
+
+// Higher-timeframe sweeps take precedence. Local probes are OFF by default.
+bool crossingH1Low = not na(h1Low) and low < h1Low - sweepDepth and low[1] >= h1Low
+bool crossingH1High = not na(h1High) and high > h1High + sweepDepth and high[1] <= h1High
+bool crossing15Low = seconds <= 900 and not na(m15Low) and low < m15Low - sweepDepth and low[1] >= m15Low
+bool crossing15High = seconds <= 900 and not na(m15High) and high > m15High + sweepDepth and high[1] <= m15High
+bool crossingLocalLow = allowLocal and not na(localLow[1]) and low < localLow[1] - sweepDepth and low[1] >= localLow[1]
+bool crossingLocalHigh = allowLocal and not na(localHigh[1]) and high > localHigh[1] + sweepDepth and high[1] <= localHigh[1]
+float sweepLow = crossingH1Low ? h1Low : crossing15Low ? m15Low : crossingLocalLow ? localLow[1] : na
+float sweepHigh = crossingH1High ? h1High : crossing15High ? m15High : crossingLocalHigh ? localHigh[1] : na
+string sweepLowTF = crossingH1Low ? "1H" : crossing15Low ? "15M" : "LOCAL"
+string sweepHighTF = crossingH1High ? "1H" : crossing15High ? "15M" : "LOCAL"
+
+// --------------------- NON-REPAINTING REVERSAL STATE -----------------------
+// 0: idle | 1: breached / wait reclaim | 2: reclaimed / wait MSS | 3: OB / retest | 4: fired.
+var int bullState = 0
+var int bearState = 0
+var int lastSweep = na
+var int lastSignal = na
+var int bullProbeBar = na
+var int bearProbeBar = na
+var int bullReclaimBar = na
+var int bearReclaimBar = na
+var int bullMadeBar = na
+var int bearMadeBar = na
+var float bullLevel = na
+var float bearLevel = na
+var float bullExtreme = na
+var float bearExtreme = na
+var float bullBreak = na
+var float bearBreak = na
+var float bullTop = na
+var float bullBottom = na
+var float bearTop = na
+var float bearBottom = na
+var int bullTouches = 0
+var int bearTouches = 0
+var bool bullTouchedPrevious = false
+var bool bearTouchedPrevious = false
+var string bullOrigin = ""
+var string bearOrigin = ""
+var box bullBox = na
+var box bearBox = na
+
+bool probeBull = false
+bool probeBear = false
+bool reclaimBull = false
+bool reclaimBear = false
+bool shiftBull = false
+bool shiftBear = false
+
+// One live directional candidate at a time avoids contradictory signals.
+if barstate.isconfirmed and validTF
+    bool canStart = bullState == 0 and bearState == 0 and (na(lastSweep) or bar_index - lastSweep > sweepSpacing)
+    bool uniqueLowBreach = not na(sweepLow) and na(sweepHigh)
+    bool uniqueHighBreach = not na(sweepHigh) and na(sweepLow)
+    if canStart and uniqueLowBreach
+        bullState := 1
+        bullProbeBar := bar_index
+        bullReclaimBar := na
+        bullLevel := sweepLow
+        bullExtreme := low
+        bullBreak := localBreakHigh
+        bullOrigin := sweepLowTF
+        bullTouches := 0
+        bullTouchedPrevious := false
+        bullMadeBar := na
+        lastSweep := bar_index
+        probeBull := true
+        if not na(bullBox)
+            box.delete(bullBox)
+            bullBox := na
+    else if canStart and uniqueHighBreach
+        bearState := 1
+        bearProbeBar := bar_index
+        bearReclaimBar := na
+        bearLevel := sweepHigh
+        bearExtreme := high
+        bearBreak := localBreakLow
+        bearOrigin := sweepHighTF
+        bearTouches := 0
+        bearTouchedPrevious := false
+        bearMadeBar := na
+        lastSweep := bar_index
+        probeBear := true
+        if not na(bearBox)
+            box.delete(bearBox)
+            bearBox := na
+
+    // Stage 1: require a true reclaim; track the actual extreme during the probe.
+    if bullState == 1
+        bullExtreme := math.min(bullExtreme, low)
+        if close > bullLevel and bar_index - bullProbeBar <= reclaimLimit
+            bullState := 2
+            bullReclaimBar := bar_index
+            reclaimBull := true
+        else if bar_index - bullProbeBar >= reclaimLimit
+            bullState := 0
+    if bearState == 1
+        bearExtreme := math.max(bearExtreme, high)
+        if close < bearLevel and bar_index - bearProbeBar <= reclaimLimit
+            bearState := 2
+            bearReclaimBar := bar_index
+            reclaimBear := true
+        else if bar_index - bearProbeBar >= reclaimLimit
+            bearState := 0
+
+    // Stage 2: displacement must break the swing level frozen when the sweep began.
+    if bullState == 2
+        if bar_index - bullReclaimBar > shiftLimit or close < bullExtreme - invalidationATR * atr
+            bullState := 0
+        else if bar_index > bullReclaimBar and not na(bullBreak) and close > bullBreak and close > open and body >= shiftBodyATR * atr
+            shiftBull := true
+            int chosen = na
+            for j = 1 to obLookback
+                if na(chosen) and bar_index - j >= bullProbeBar - beforeSweep and close[j] < open[j]
+                    chosen := j
+            if not na(chosen)
+                bullTop := open[chosen]
+                bullBottom := low[chosen]
+                bullMadeBar := bar_index
+                bullState := 3
+                if showOB
+                    bullBox := box.new(left=bar_index - chosen, top=bullTop, right=bar_index + 1, bottom=bullBottom, border_color=color.new(color.teal, 12), bgcolor=color.new(color.teal, 83), text="BUY ZONE", text_color=color.teal, text_size=size.tiny)
+            else
+                bullState := 0
+    if bearState == 2
+        if bar_index - bearReclaimBar > shiftLimit or close > bearExtreme + invalidationATR * atr
+            bearState := 0
+        else if bar_index > bearReclaimBar and not na(bearBreak) and close < bearBreak and close < open and body >= shiftBodyATR * atr
+            shiftBear := true
+            int chosen = na
+            for j = 1 to obLookback
+                if na(chosen) and bar_index - j >= bearProbeBar - beforeSweep and close[j] > open[j]
+                    chosen := j
+            if not na(chosen)
+                bearTop := high[chosen]
+                bearBottom := open[chosen]
+                bearMadeBar := bar_index
+                bearState := 3
+                if showOB
+                    bearBox := box.new(left=bar_index - chosen, top=bearTop, right=bar_index + 1, bottom=bearBottom, border_color=color.new(color.red, 12), bgcolor=color.new(color.red, 83), text="SELL ZONE", text_color=color.red, text_size=size.tiny)
+            else
+                bearState := 0
+
+    // Stage 3: keep only the active zone, invalidate on distal breach or expiry.
+    if bullState == 3
+        if close < bullBottom - invalidationATR * atr or bar_index - bullMadeBar > obLifetime
+            bullState := 0
+            if not na(bullBox)
+                box.delete(bullBox)
+                bullBox := na
+        else if not na(bullBox)
+            box.set_right(bullBox, bar_index + 2)
+    if bearState == 3
+        if close > bearTop + invalidationATR * atr or bar_index - bearMadeBar > obLifetime
+            bearState := 0
+            if not na(bearBox)
+                box.delete(bearBox)
+                bearBox := na
+        else if not na(bearBox)
+            box.set_right(bearBox, bar_index + 2)
+
+    // Fired setups stop competing with fresh signals after a short display period.
+    if bullState == 4 and bar_index - bullMadeBar > 8
+        bullState := 0
+        if not na(bullBox)
+            box.delete(bullBox)
+            bullBox := na
+    if bearState == 4 and bar_index - bearMadeBar > 8
+        bearState := 0
+        if not na(bearBox)
+            box.delete(bearBox)
+            bearBox := na
+
+// ----------------------------- RETEST AND SCORE ----------------------------
+bool bullLive = bullState == 3 and not na(bullMadeBar) and bar_index > bullMadeBar
+bool bearLive = bearState == 3 and not na(bearMadeBar) and bar_index > bearMadeBar
+bool touchingBull = bullLive and low <= bullTop and high >= bullBottom
+bool touchingBear = bearLive and high >= bearBottom and low <= bearTop
+if barstate.isconfirmed
+    if touchingBull and not bullTouchedPrevious
+        bullTouches += 1
+    if touchingBear and not bearTouchedPrevious
+        bearTouches += 1
+    bullTouchedPrevious := touchingBull
+    bearTouchedPrevious := touchingBear
+bool retestBull = touchingBull and bullTouches <= maxTouches
+bool retestBear = touchingBear and bearTouches <= maxTouches
+bool bullRejected = retestBull and close > open and close >= bullBottom + (bullTop - bullBottom) * zoneCloseFrac
+bool bearRejected = retestBear and close < open and close <= bearTop - (bearTop - bearBottom) * zoneCloseFrac
+bool bullVWAPOK = not filterVWAP or (not na(vwapValue) and close >= vwapValue)
+bool bearVWAPOK = not filterVWAP or (not na(vwapValue) and close <= vwapValue)
+float bullStop = bullLive ? math.min(bullExtreme, bullBottom) - atr * stopBuffer : na
+float bearStop = bearLive ? math.max(bearExtreme, bearTop) + atr * stopBuffer : na
+float bullRisk = bullLive ? close - bullStop : na
+float bearRisk = bearLive ? bearStop - close : na
+bool bullRiskOK = not na(bullRisk) and atr > 0 and bullRisk >= 3 * syminfo.mintick and bullRisk <= maxRiskATR * atr
+bool bearRiskOK = not na(bearRisk) and atr > 0 and bearRisk >= 3 * syminfo.mintick and bearRisk <= maxRiskATR * atr
+bool cooldownOK = na(lastSignal) or bar_index - lastSignal > cooldown
+// Footprint delta is TradingView-classified lower-timeframe volume, not Level 2 DOM.
+bool bullFlowOK = bullishProxy and footprintBullReady
+bool bearFlowOK = bearishProxy and footprintBearReady
+int flowBullPts = bullFlowOK ? 16 + (bullPOC or bullStack ? 4 : 0) : 0
+int flowBearPts = bearFlowOK ? 16 + (bearPOC or bearStack ? 4 : 0) : 0
+// 100 possible points. More restrictive absolute gates remain mandatory.
+int bullScore = (bullState == 3 ? 25 : 0) + (bullLive ? 15 : 0) + (retestBull ? 5 : 0) + flowBullPts + (rvolOK ? 10 : 0) + (priority ? 10 : sessionOK ? 3 : 0) + (not na(vwapValue) and close >= vwapValue ? 10 : 0) + newsPoints
+int bearScore = (bearState == 3 ? 25 : 0) + (bearLive ? 15 : 0) + (retestBear ? 5 : 0) + flowBearPts + (rvolOK ? 10 : 0) + (priority ? 10 : sessionOK ? 3 : 0) + (not na(vwapValue) and close <= vwapValue ? 10 : 0) + newsPoints
+bool buySignal = barstate.isconfirmed and globalGate and cooldownOK and bullRejected and bullFlowOK and rvolOK and bullVWAPOK and bullRiskOK and bullScore >= minScore and repoBullOK
+bool sellSignal = barstate.isconfirmed and globalGate and cooldownOK and bearRejected and bearFlowOK and rvolOK and bearVWAPOK and bearRiskOK and bearScore >= minScore and repoBearOK and not buySignal
+
+string buyBlocker = not validTF ? "Use 1M-1H" : not newsOK ? newsStatus : not sessionOK ? "Priority only: outside session" : not volumeReady ? "Volume unavailable" : not fpReady ? "Footprint data unavailable" : not quietBodyOK ? "Quiet candle body too small" : not rangeOK ? "Excessive volatility" : not spreadOK ? "Estimated spread too high" : bullState == 0 ? "Await confirmed sell-side sweep" : bullState == 1 ? "Await low reclaim" : bullState == 2 ? "Await bullish MSS" : bullState == 4 ? "Already fired" : not retestBull ? "Await bullish OB retest" : not bullRejected ? "Await bullish rejection" : not bullFlowOK ? "Directional flow unconfirmed" : not rvolOK ? "RVOL under active threshold" : not bullVWAPOK ? "VWAP hard gate" : not bullRiskOK ? "Structural stop invalid" : bullScore < minScore ? "Score insufficient" : not repoBullOK ? "Technical votes under minimum" : not cooldownOK ? "Cooldown" : "ALL REQUIREMENTS PASS"
+string sellBlocker = not validTF ? "Use 1M-1H" : not newsOK ? newsStatus : not sessionOK ? "Priority only: outside session" : not volumeReady ? "Volume unavailable" : not fpReady ? "Footprint data unavailable" : not quietBodyOK ? "Quiet candle body too small" : not rangeOK ? "Excessive volatility" : not spreadOK ? "Estimated spread too high" : bearState == 0 ? "Await confirmed buy-side sweep" : bearState == 1 ? "Await high reclaim" : bearState == 2 ? "Await bearish MSS" : bearState == 4 ? "Already fired" : not retestBear ? "Await bearish OB retest" : not bearRejected ? "Await bearish rejection" : not bearFlowOK ? "Directional flow unconfirmed" : not rvolOK ? "RVOL under active threshold" : not bearVWAPOK ? "VWAP hard gate" : not bearRiskOK ? "Structural stop invalid" : bearScore < minScore ? "Score insufficient" : not repoBearOK ? "Technical votes under minimum" : not cooldownOK ? "Cooldown" : "ALL REQUIREMENTS PASS"
+
+
+// ----------------- EXECUTABLE STRATEGY BACKTEST ORDERS --------------------
+// By default orders are processed on closed signal bars; edit strategy Properties
+// to change commission/slippage, and verify contract size for GC vs XAUUSD CFD.
+// No live broker order is submitted by TradingView Strategy Tester itself.
+var float activeStop = na
+var float activeTarget = na
+var float lastSimQty = na
+bool canOpen = strategy.position_size == 0 and strategy.opentrades == 0
+float longStopDistance = bullRisk
+float shortStopDistance = bearRisk
+float longRawQty = sizingMode == "Fixed" ? fixedQty : strategy.equity * equityRiskPct / 100.0 / (longStopDistance * valuePerPoint)
+float shortRawQty = sizingMode == "Fixed" ? fixedQty : strategy.equity * equityRiskPct / 100.0 / (shortStopDistance * valuePerPoint)
+float longQty = not na(longRawQty) and longRawQty > 0 ? math.floor(longRawQty / qtyStep) * qtyStep : na
+float shortQty = not na(shortRawQty) and shortRawQty > 0 ? math.floor(shortRawQty / qtyStep) * qtyStep : na
+bool longSizeOK = not na(longQty) and longQty >= minOrderQty
+bool shortSizeOK = not na(shortQty) and shortQty >= minOrderQty
+bool executeLong = buySignal and canOpen and longSizeOK
+bool executeShort = sellSignal and canOpen and shortSizeOK
+if executeLong
+    activeStop := bullStop
+    activeTarget := close + bullRisk * takeProfitR
+    lastSimQty := longQty
+    strategy.entry("IGLOF LONG", strategy.long, qty=longQty, comment="SSL+MSS+OB+TECH")
+    strategy.exit("LONG bracket", from_entry="IGLOF LONG", stop=activeStop, limit=activeTarget)
+if executeShort
+    activeStop := bearStop
+    activeTarget := close - bearRisk * takeProfitR
+    lastSimQty := shortQty
+    strategy.entry("IGLOF SHORT", strategy.short, qty=shortQty, comment="BSL+MSS+OB+TECH")
+    strategy.exit("SHORT bracket", from_entry="IGLOF SHORT", stop=activeStop, limit=activeTarget)
+// Keep fixed entry-bracket prices live; no retroactive stop revisions.
+if strategy.position_size > 0 and not na(activeStop) and not na(activeTarget)
+    strategy.exit("LONG bracket", from_entry="IGLOF LONG", stop=activeStop, limit=activeTarget)
+if strategy.position_size < 0 and not na(activeStop) and not na(activeTarget)
+    strategy.exit("SHORT bracket", from_entry="IGLOF SHORT", stop=activeStop, limit=activeTarget)
+// Do not zero the bracket on the signal bar, or on the fill bar.
+if strategy.position_size == 0 and strategy.position_size[1] != 0
+    activeStop := na
+    activeTarget := na
+
+plot(strategy.position_size != 0 ? activeStop : na, "Active simulated stop", color=color.new(color.red, 0), style=plot.style_linebr, linewidth=2)
+plot(strategy.position_size != 0 ? activeTarget : na, "Active simulated target", color=color.new(color.aqua, 0), style=plot.style_linebr, linewidth=2)
+plot(showTechPlots ? bbUpper : na, "Bollinger upper", color=color.new(color.silver, 70))
+plot(showTechPlots ? bbMiddle : na, "Bollinger middle", color=color.new(color.silver, 70))
+plot(showTechPlots ? bbLower : na, "Bollinger lower", color=color.new(color.silver, 70))
+plot(bullTechVotes, "Technical BUY votes /6", display=display.data_window)
+plot(bearTechVotes, "Technical SELL votes /6", display=display.data_window)
+plot(rsiValue, "Gold Prediction RSI", display=display.data_window)
+plot(macdHist, "Gold Prediction MACD histogram", display=display.data_window)
+plot(rocValue, "Gold Prediction ROC %", display=display.data_window)
+plot(atrRegime, "ATR volatility regime ratio", display=display.data_window)
+plot(gkRegime, "Garman-Klass volatility regime ratio", display=display.data_window)
+
+// ---------------------------- LAST TRADE PLAN -----------------------------
+var line entryLine = na
+var line stopLine = na
+var line targetLine = na
+var box riskBox = na
+var box rewardBox = na
+var label tradeLabel = na
+if executeLong or executeShort
+    bool bullish = executeLong
+    float entry = close
+    float sl = bullish ? bullStop : bearStop
+    float risk = bullish ? bullRisk : bearRisk
+    float tp = bullish ? entry + takeProfitR * risk : entry - takeProfitR * risk
+    lastSignal := bar_index
+    if showTradePlan
+        if not na(entryLine)
+            line.delete(entryLine)
+        if not na(stopLine)
+            line.delete(stopLine)
+        if not na(targetLine)
+            line.delete(targetLine)
+        if not na(riskBox)
+            box.delete(riskBox)
+        if not na(rewardBox)
+            box.delete(rewardBox)
+        if not na(tradeLabel)
+            label.delete(tradeLabel)
+        color sideColor = bullish ? color.lime : color.red
+        entryLine := line.new(bar_index, entry, bar_index + planBars, entry, color=sideColor, width=2)
+        stopLine := line.new(bar_index, sl, bar_index + planBars, sl, color=color.red, style=line.style_dashed)
+        targetLine := line.new(bar_index, tp, bar_index + planBars, tp, color=color.aqua, style=line.style_dashed)
+        riskBox := box.new(bar_index, math.max(entry, sl), bar_index + planBars, math.min(entry, sl), bgcolor=color.new(color.red, 93), border_color=color.new(color.red, 91))
+        rewardBox := box.new(bar_index, math.max(entry, tp), bar_index + planBars, math.min(entry, tp), bgcolor=color.new(color.teal, 92), border_color=color.new(color.teal, 90))
+        tradeLabel := label.new(bar_index, bullish ? low : high, (bullish ? "BUY" : "SELL") + " | " + str.tostring(bullish ? bullScore : bearScore) + "/100 | TECH " + str.tostring(bullish ? bullTechVotes : bearTechVotes) + "/6\nEntry " + str.tostring(entry, format.mintick) + "\nStop " + str.tostring(sl, format.mintick) + "\nTP " + str.tostring(tp, format.mintick) + " (" + str.tostring(takeProfitR, "#.##") + "R)", style=bullish ? label.style_label_up : label.style_label_down, color=sideColor, textcolor=color.black, size=size.small)
+    if bullish
+        bullState := 4
+        if not na(bullBox)
+            box.set_bgcolor(bullBox, color.new(color.teal, 93))
+            box.set_right(bullBox, bar_index + 2)
+    else
+        bearState := 4
+        if not na(bearBox)
+            box.set_bgcolor(bearBox, color.new(color.red, 93))
+            box.set_right(bearBox, bar_index + 2)
+    alert("IGLOF V3.1 " + (bullish ? "BUY" : "SELL") + " | " + syminfo.ticker + " | Entry=" + str.tostring(entry, format.mintick) + " | Stop=" + str.tostring(sl, format.mintick) + " | Target=" + str.tostring(tp, format.mintick) + " | Score=" + str.tostring(bullish ? bullScore : bearScore) + "/100 | " + "CLASSIFIED FOOTPRINT / NOT DOM" + " | News=" + newsStatus, alert.freq_once_per_bar_close)
+
+// --------------------------- CLEAN CHART OUTPUT ----------------------------
+plot(plotVWAP ? vwapValue : na, title="Session VWAP", color=color.new(color.orange, 10), linewidth=2)
+plotshape(showProbeMarkers and probeBull, title="Low sweep probe", style=shape.circle, location=location.belowbar, color=color.new(color.aqua, 35), size=size.tiny)
+plotshape(showProbeMarkers and probeBear, title="High sweep probe", style=shape.circle, location=location.abovebar, color=color.new(color.fuchsia, 35), size=size.tiny)
+plotshape(showSweepMarkers and reclaimBull, title="SSL reclaimed", style=shape.triangleup, location=location.belowbar, color=color.aqua, size=size.tiny, text="SSL")
+plotshape(showSweepMarkers and reclaimBear, title="BSL rejected", style=shape.triangledown, location=location.abovebar, color=color.fuchsia, size=size.tiny, text="BSL")
+plotshape(showShiftMarkers and shiftBull, title="Bullish MSS", style=shape.diamond, location=location.belowbar, color=color.lime, size=size.tiny, text="MSS")
+plotshape(showShiftMarkers and shiftBear, title="Bearish MSS", style=shape.diamond, location=location.abovebar, color=color.red, size=size.tiny, text="MSS")
+plotshape(executeLong, title="Executed strategy BUY", style=shape.labelup, location=location.belowbar, color=color.lime, text="BUY", textcolor=color.black, size=size.tiny)
+plotshape(executeShort, title="Executed strategy SELL", style=shape.labeldown, location=location.abovebar, color=color.red, text="SELL", textcolor=color.white, size=size.tiny)
+
+// Quantities appear in the Data Window; not spammed on the candlestick chart.
+plot(float(bullScore), "BUY confluence score (not probability)", display=display.data_window)
+plot(float(bearScore), "SELL confluence score (not probability)", display=display.data_window)
+plot(rvol, "Relative volume", display=display.data_window)
+plot(pressure * 100, "Directional pressure % (see feed mode)", display=display.data_window)
+plot(fpBuy, "Footprint categorized BUY volume", display=display.data_window)
+plot(fpSell, "Footprint categorized SELL volume", display=display.data_window)
+plot(fpDelta, "Footprint categorized volume delta", display=display.data_window)
+plot(fpSessionCVD, "Daily cumulated categorized delta", display=display.data_window)
+plot(fpPoc, "Footprint bar POC midpoint", display=display.data_window)
+plot(fpVAH, "Footprint bar VAH", display=display.data_window)
+plot(fpVAL, "Footprint bar VAL", display=display.data_window)
+plot(float(fpBuyStack), "Max consecutive buy imbalance rows", display=display.data_window)
+plot(float(fpSellStack), "Max consecutive sell imbalance rows", display=display.data_window)
+bgcolor(highlightNews and newsHigh ? color.new(color.red, 89) : highlightNews and newsMedium ? color.new(color.orange, 91) : highlightNews and newsLow ? color.new(color.yellow, 94) : na, title="Manually scheduled economic event caution")
+// Draw only the latest candle's volume footprint POC and VA boundaries.
+var line pocLine = na
+var line vahLine = na
+var line valLine = na
+if barstate.islast
+    if not na(pocLine)
+        line.delete(pocLine)
+        pocLine := na
+    if not na(vahLine)
+        line.delete(vahLine)
+        vahLine := na
+    if not na(valLine)
+        line.delete(valLine)
+        valLine := na
+    if showLastFootprintPOC and fpReady
+        pocLine := line.new(bar_index, fpPoc, bar_index + 5, fpPoc, color=color.yellow, width=2)
+        vahLine := line.new(bar_index, fpVAH, bar_index + 5, fpVAH, color=color.new(color.aqua, 45), style=line.style_dotted)
+        valLine := line.new(bar_index, fpVAL, bar_index + 5, fpVAL, color=color.new(color.aqua, 45), style=line.style_dotted)
+
+// Only draw a SHORT segment of the CURRENT confirmed HTF levels; never plot full history.
+var line h1HighLine = na
+var line h1LowLine = na
+var line m15HighLine = na
+var line m15LowLine = na
+if barstate.islast
+    if plot1H and not na(h1High)
+        if na(h1HighLine)
+            h1HighLine := line.new(bar_index - levelPast, h1High, bar_index + levelForward, h1High, color=color.new(color.red, 38), style=line.style_dashed)
+        else
+            line.set_xy1(h1HighLine, bar_index - levelPast, h1High)
+            line.set_xy2(h1HighLine, bar_index + levelForward, h1High)
+    else if not na(h1HighLine)
+        line.delete(h1HighLine)
+        h1HighLine := na
+    if plot1H and not na(h1Low)
+        if na(h1LowLine)
+            h1LowLine := line.new(bar_index - levelPast, h1Low, bar_index + levelForward, h1Low, color=color.new(color.teal, 38), style=line.style_dashed)
+        else
+            line.set_xy1(h1LowLine, bar_index - levelPast, h1Low)
+            line.set_xy2(h1LowLine, bar_index + levelForward, h1Low)
+    else if not na(h1LowLine)
+        line.delete(h1LowLine)
+        h1LowLine := na
+    if plot15M and seconds <= 900 and not na(m15High)
+        if na(m15HighLine)
+            m15HighLine := line.new(bar_index - levelPast, m15High, bar_index + levelForward, m15High, color=color.new(color.red, 75), style=line.style_dotted)
+        else
+            line.set_xy1(m15HighLine, bar_index - levelPast, m15High)
+            line.set_xy2(m15HighLine, bar_index + levelForward, m15High)
+    else if not na(m15HighLine)
+        line.delete(m15HighLine)
+        m15HighLine := na
+    if plot15M and seconds <= 900 and not na(m15Low)
+        if na(m15LowLine)
+            m15LowLine := line.new(bar_index - levelPast, m15Low, bar_index + levelForward, m15Low, color=color.new(color.teal, 75), style=line.style_dotted)
+        else
+            line.set_xy1(m15LowLine, bar_index - levelPast, m15Low)
+            line.set_xy2(m15LowLine, bar_index + levelForward, m15Low)
+    else if not na(m15LowLine)
+        line.delete(m15LowLine)
+        m15LowLine := na
+
+alertcondition(executeLong, title="IGLOF V3.1 Qualified BUY", message="IGLOF V3.1 BUY {{ticker}} at {{close}}. Footprint classified volume; NOT DOM.")
+alertcondition(executeShort, title="IGLOF V3.1 Qualified SELL", message="IGLOF V3.1 SELL {{ticker}} at {{close}}. Footprint classified volume; NOT DOM.")
+alertcondition(reclaimBull or reclaimBear, title="IGLOF V3.1 Confirmed sweep", message="IGLOF V3.1 confirmed liquidity reclaim {{ticker}}")
+alertcondition(shiftBull or shiftBear, title="IGLOF V3.1 MSS", message="IGLOF V3.1 displacement structure shift {{ticker}}")
+alertcondition(newsHigh, title="IGLOF V3.1 HIGH impact window", message="Manually scheduled HIGH impact economic release window active for {{ticker}}")
+alertcondition(newsMedium or newsLow, title="IGLOF V3.1 economic news caution", message="Manually scheduled MEDIUM/LOW impact economic release window for {{ticker}}")
+
+// ------------------- PASS / WAIT / N/A DECISION MATRIX --------------------
+f_phase(int state) =>
+    state == 1 ? "PROBE / RECLAIM" : state == 2 ? "RECLAIM / MSS" : state == 3 ? "OB / WAIT RETEST" : state == 4 ? "FIRED" : "IDLE"
+
+f_flag(table t, int row, int col, bool passed, bool available=true) =>
+    string v = not available ? "N/A" : passed ? "PASS" : "WAIT"
+    color c = not available ? color.silver : passed ? color.lime : color.orange
+    table.cell(t, col, row, v, text_color=c, bgcolor=color.new(color.rgb(20, 29, 43), 5), text_size=size.tiny)
+
+f_head(table t, int row, string lbl) =>
+    table.cell(t, 0, row, lbl, text_color=color.silver, bgcolor=color.new(color.rgb(20, 29, 43), 5), text_size=size.tiny)
+
+var table dash = table.new(dashLocation == "Bottom Right" ? position.bottom_right : dashLocation == "Top Left" ? position.top_left : position.top_right, 3, 35, bgcolor=color.rgb(12, 21, 33), frame_color=color.new(color.gray, 45), frame_width=1)
+if barstate.islast
+    if showDashboard
+        color heading = color.rgb(24, 47, 65)
+        color panel = color.rgb(20, 29, 43)
+        table.cell(dash, 0, 0, "IGLOF + GP STR", bgcolor=heading, text_color=color.white, text_size=size.small)
+        table.cell(dash, 1, 0, "BUY", bgcolor=heading, text_color=color.lime, text_size=size.small)
+        table.cell(dash, 2, 0, "SELL", bgcolor=heading, text_color=color.red, text_size=size.small)
+        f_head(dash, 1, "SWEEP DETECTED")
+        f_flag(dash, 1, 1, bullState >= 1)
+        f_flag(dash, 1, 2, bearState >= 1)
+        f_head(dash, 2, "LEVEL RECLAIMED")
+        f_flag(dash, 2, 1, bullState >= 2)
+        f_flag(dash, 2, 2, bearState >= 2)
+        f_head(dash, 3, "MSS + ORDER BLOCK")
+        f_flag(dash, 3, 1, bullState >= 3)
+        f_flag(dash, 3, 2, bearState >= 3)
+        f_head(dash, 4, "OB RETEST")
+        f_flag(dash, 4, 1, retestBull)
+        f_flag(dash, 4, 2, retestBear)
+        f_head(dash, 5, "REJECTION CANDLE")
+        f_flag(dash, 5, 1, bullRejected)
+        f_flag(dash, 5, 2, bearRejected)
+        f_head(dash, 6, "CLASSIFIED DELTA")
+        f_flag(dash, 6, 1, bullFlowOK, fpReady)
+        f_flag(dash, 6, 2, bearFlowOK, fpReady)
+        f_head(dash, 7, "RVOL THRESHOLD")
+        f_flag(dash, 7, 1, rvolOK, volumeReady)
+        f_flag(dash, 7, 2, rvolOK, volumeReady)
+        f_head(dash, 8, "SESSION POLICY")
+        f_flag(dash, 8, 1, sessionOK)
+        f_flag(dash, 8, 2, sessionOK)
+        f_head(dash, 9, "QUIET BODY FILTER")
+        f_flag(dash, 9, 1, quietBodyOK)
+        f_flag(dash, 9, 2, quietBodyOK)
+        f_head(dash, 10, "NEWS (MANUAL)")
+        f_flag(dash, 10, 1, newsOK, calendarConfigured or manualNewsLock)
+        f_flag(dash, 10, 2, newsOK, calendarConfigured or manualNewsLock)
+        f_head(dash, 11, "VWAP HARD GATE")
+        f_flag(dash, 11, 1, bullVWAPOK)
+        f_flag(dash, 11, 2, bearVWAPOK)
+        f_head(dash, 12, "FOOTPRINT POC (INFO)")
+        f_flag(dash, 12, 1, bullPOC, fpReady)
+        f_flag(dash, 12, 2, bearPOC, fpReady)
+        f_head(dash, 13, "FP STACK (INFO)")
+        f_flag(dash, 13, 1, bullStack, fpReady)
+        f_flag(dash, 13, 2, bearStack, fpReady)
+        f_head(dash, 14, "VOLATILITY / RANGE")
+        f_flag(dash, 14, 1, rangeOK)
+        f_flag(dash, 14, 2, rangeOK)
+        f_head(dash, 15, "SPREAD ESTIMATE")
+        f_flag(dash, 15, 1, spreadOK, estimatedSpread > 0)
+        f_flag(dash, 15, 2, spreadOK, estimatedSpread > 0)
+        f_head(dash, 16, "STOP DISTANCE")
+        f_flag(dash, 16, 1, bullRiskOK)
+        f_flag(dash, 16, 2, bearRiskOK)
+        f_head(dash, 17, "SCORE THRESHOLD")
+        f_flag(dash, 17, 1, bullScore >= minScore)
+        f_flag(dash, 17, 2, bearScore >= minScore)
+        f_head(dash, 18, "ALERT COOLDOWN")
+        f_flag(dash, 18, 1, cooldownOK)
+        f_flag(dash, 18, 2, cooldownOK)
+        table.cell(dash, 0, 19, "SCORE", bgcolor=heading, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 1, 19, str.tostring(bullScore) + "/100", bgcolor=heading, text_color=color.lime, text_size=size.tiny)
+        table.cell(dash, 2, 19, str.tostring(bearScore) + "/100", bgcolor=heading, text_color=color.red, text_size=size.tiny)
+        table.cell(dash, 0, 20, "SETUP PHASE", bgcolor=panel, text_color=color.silver, text_size=size.tiny)
+        table.cell(dash, 1, 20, f_phase(bullState), bgcolor=panel, text_color=color.lime, text_size=size.tiny)
+        table.cell(dash, 2, 20, f_phase(bearState), bgcolor=panel, text_color=color.red, text_size=size.tiny)
+        table.cell(dash, 0, 21, "FIRST BLOCKER", bgcolor=panel, text_color=color.silver, text_size=size.tiny)
+        table.cell(dash, 1, 21, buyBlocker, bgcolor=panel, text_color=color.orange, text_size=size.tiny)
+        table.cell(dash, 2, 21, sellBlocker, bgcolor=panel, text_color=color.orange, text_size=size.tiny)
+        table.cell(dash, 0, 22, "SESSION", bgcolor=panel, text_color=color.silver, text_size=size.tiny)
+        table.cell(dash, 1, 22, sessionName, bgcolor=panel, text_color=priority ? color.lime : color.yellow, text_size=size.tiny)
+        table.cell(dash, 2, 22, "RVOL " + (na(rvol) ? "N/A" : str.tostring(rvol, "#.##") + "x"), bgcolor=panel, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 0, 23, "ECONOMIC EVENT", bgcolor=panel, text_color=color.silver, text_size=size.tiny)
+        table.cell(dash, 1, 23, newsStatus, bgcolor=panel, text_color=newsOK ? color.yellow : color.red, text_size=size.tiny)
+        table.cell(dash, 2, 23, newsEventName, bgcolor=panel, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 0, 24, "FLOW DETAIL", bgcolor=panel, text_color=color.silver, text_size=size.tiny)
+        table.cell(dash, 1, 24, fpReady ? "B " + str.tostring(fpBuy, format.volume) + " / S " + str.tostring(fpSell, format.volume) : "FP N/A", bgcolor=panel, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 2, 24, fpReady ? "D " + str.tostring(fpDelta, format.volume) + " | STK " + str.tostring(fpBuyStack) + "/" + str.tostring(fpSellStack) : "FP N/A", bgcolor=panel, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 0, 25, "ACTION / MODE", bgcolor=heading, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 1, 25, executeLong ? "BUY" : executeShort ? "SELL" : not globalGate ? "LOCKED / WAIT" : "WATCH / WAIT", bgcolor=heading, text_color=buySignal ? color.lime : sellSignal ? color.red : color.white, text_size=size.tiny)
+        table.cell(dash, 2, 25, fpReady ? "FOOTPRINT / NO DOM" : "FP UNAVAILABLE", bgcolor=heading, text_color=color.orange, text_size=size.tiny)
+        f_head(dash, 26, "MACD")
+        f_flag(dash, 26, 1, techBullMACD)
+        f_flag(dash, 26, 2, techBearMACD)
+        f_head(dash, 27, "RSI")
+        f_flag(dash, 27, 1, techBullRSI)
+        f_flag(dash, 27, 2, techBearRSI)
+        f_head(dash, 28, "BOLLINGER")
+        f_flag(dash, 28, 1, techBullBB)
+        f_flag(dash, 28, 2, techBearBB)
+        f_head(dash, 29, "RATE OF CHANGE")
+        f_flag(dash, 29, 1, techBullROC)
+        f_flag(dash, 29, 2, techBearROC)
+        f_head(dash, 30, "ATR REGIME")
+        f_flag(dash, 30, 1, atrRegimeOK, not na(atrRegime))
+        f_flag(dash, 30, 2, atrRegimeOK, not na(atrRegime))
+        f_head(dash, 31, "GARMAN-KLASS")
+        f_flag(dash, 31, 1, gkRegimeOK, not na(gkRegime))
+        f_flag(dash, 31, 2, gkRegimeOK, not na(gkRegime))
+        table.cell(dash, 0, 32, "TECH VOTES / GATE", bgcolor=heading, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 1, 32, str.tostring(bullTechVotes) + "/6  " + (repoBullOK ? "PASS" : "WAIT"), bgcolor=heading, text_color=repoBullOK ? color.lime : color.orange, text_size=size.tiny)
+        table.cell(dash, 2, 32, str.tostring(bearTechVotes) + "/6  " + (repoBearOK ? "PASS" : "WAIT"), bgcolor=heading, text_color=repoBearOK ? color.lime : color.orange, text_size=size.tiny)
+        f_head(dash, 33, "POSITION SIZE")
+        table.cell(dash, 1, 33, longSizeOK ? str.tostring(longQty, "#.####") : "INSUFFICIENT", bgcolor=panel, text_color=longSizeOK ? color.white : color.orange, text_size=size.tiny)
+        table.cell(dash, 2, 33, shortSizeOK ? str.tostring(shortQty, "#.####") : "INSUFFICIENT", bgcolor=panel, text_color=shortSizeOK ? color.white : color.orange, text_size=size.tiny)
+        f_head(dash, 34, "SIMULATED TRADE")
+        table.cell(dash, 1, 34, strategy.position_size > 0 ? "LONG" : strategy.position_size < 0 ? "SHORT" : "FLAT", bgcolor=panel, text_color=color.white, text_size=size.tiny)
+        table.cell(dash, 2, 34, "CLOSED " + str.tostring(strategy.closedtrades), bgcolor=panel, text_color=color.white, text_size=size.tiny)
+    else
+        table.clear(dash, 0, 0, 2, 34)
